@@ -1,0 +1,23 @@
+{
+  "name": "lspnet-server",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "callsite": "^1.0.0",
+    "ip-address": "^8.1.0",
+    "jsbn": "^1.1.0",
+    "koa": "^2.14.1",
+    "koa-bodyparser": "^4.3.0",
+    "koa-json": "^2.0.2",
+    "koa-router": "^12.0.0",
+    "moment": "^2.29.4",
+    "mysql": "^2.18.1",
+    "winston": "^3.8.2"
+  }
+}
