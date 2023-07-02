@@ -55,14 +55,20 @@ router.post('/request', async (ctx) => {
     if (key == null) {
         await dao.addKey(network, targetHost, keyName, '')
         ctx.body = {
+            host: targetHost,
+            name: keyName,
             status: 'pending',
         }
     } else if (key.length < 1) {
         ctx.body = {
+            host: targetHost,
+            name: keyName,
             status: 'pending',
         }
     } else {
         ctx.body = {
+            host: targetHost,
+            name: keyName,
             status: 'ready',
             key,
         }
@@ -93,14 +99,20 @@ router.post('/batch_request', async (ctx) => {
         if (key == null) {
             await dao.addKey(network, targetHost, name, '')
             return {
+                host: targetHost,
+                name,
                 status: 'pending',
             }
         } else if (key.length < 1) {
             return {
+                host: targetHost,
+                name,
                 status: 'pending',
             }
         } else {
             return {
+                host: targetHost,
+                name,
                 status: 'ready',
                 key,
             }

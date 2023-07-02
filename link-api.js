@@ -139,7 +139,7 @@ router.post('/create', async (ctx) => {
 
         const nextCIDR = GetNextAvailableLinkNetworkCIDR(results.map(row => row.address), networkConfig.subnet)
         logger.info(`choose next cidr: ${nextCIDR}`)
-        return nextCIDR
+        return GetPeerLinkCIDR(nextCIDR)
     })
 
     ctx.body = await dao.getLink(network, host, name)
