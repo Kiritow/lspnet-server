@@ -9,7 +9,9 @@ const linkRouter = require('./link-api')
 const { LoadServiceInfo, logger } = require('./common')
 
 
-const app = new koa()
+const app = new koa({
+    proxy: true,
+})
 app.use(koaBodyParser())
 app.use(koaJSON())
 app.use(NewAsyncRootMW())

@@ -176,6 +176,10 @@ router.post('/report', async (ctx) => {
     influxWriteAPI.writeMultiInt('inf.network.monitoring', dataPack, { network, host, name })
     // await influxWriteAPI.flush()
 
+    // Use cloudflare client ip header first
+    const clientIP = `${ctx.headers['CF-Connecting-IP'] || ctx.request.ip}`
+    await dao.heartbeatHost(network, host, clientIP)
+
     ctx.body = 'OK'
 })
 

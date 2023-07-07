@@ -63,6 +63,14 @@ class DaoClass extends BaseDaoClass {
 
         return results[0]
     }
+
+    async heartbeatHost(network, host, ip) {
+        const results = await this.query('select * from wghost where network=? and host=?', [network, host])
+        if (results.length > 0 && results[0].static == 1) {
+            return
+        }
+        await this.query('insert into wghost(network, host, public_ip) values (?, ?, ?) on duplicate key update public_ip=?, last_seen=now()', [network, host, ip, ip])
+    }
 }
 
 module.exports = DaoClass
