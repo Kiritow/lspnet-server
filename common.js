@@ -1,6 +1,8 @@
 const { CheckServiceToken } = require('./token')
 const DaoClass = require('./dao')
-const { GetMySQLOptionSync } = require('./credentials')
+const { GetMySQLOptionSync, GetInfluxDBOptionSync } = require('./credentials')
+const { InfluxDB, Point } = require('@influxdata/influxdb-client')
+const InfluxAPI = require('./influx')
 
 const logger = require('./base-log')('app')
 const dao = new DaoClass(Object.assign(GetMySQLOptionSync(), {
@@ -8,6 +10,13 @@ const dao = new DaoClass(Object.assign(GetMySQLOptionSync(), {
 }), require('./base-log')('mysql', {
     level: 'debug',
 }))
+
+const influxDBOptions = GetInfluxDBOptionSync()
+const influxDBClient = new InfluxDB({
+    url: influxDBOptions.url,
+    token: influxDBOptions.token,
+})
+const influxWriteAPI = new InfluxAPI(influxDBClient, influxDBOptions.org, influxDBOptions.bucket)
 
 function LoadServiceInfo(ctx) {
     const { 'x-service-token': token } = ctx.headers
@@ -21,6 +30,6 @@ function LoadServiceInfo(ctx) {
 }
 
 module.exports = {
-    logger, dao,
+    logger, dao, influxWriteAPI,
     LoadServiceInfo,
 }

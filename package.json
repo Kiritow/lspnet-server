@@ -9,6 +9,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@influxdata/influxdb-client": "^1.33.2",
     "callsite": "^1.0.0",
     "ip-address": "^8.1.0",
     "jsbn": "^1.1.0",

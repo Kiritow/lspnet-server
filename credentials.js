@@ -18,8 +18,15 @@ function GetServiceTokenKeysSync() {
     }))
 }
 
+function GetInfluxDBOptionSync() {
+    return JSON.parse(fs.readFileSync('influxdb.secret', {
+        encoding: 'utf-8',
+    }))
+}
+
 module.exports = { 
     GetMySQLOptionSync,
     GetRedisOptionSync,
     GetServiceTokenKeysSync,
+    GetInfluxDBOptionSync,
 }

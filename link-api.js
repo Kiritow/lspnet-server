@@ -2,6 +2,7 @@ const koaRouter = require('koa-router')
 const { logger, dao, LoadServiceInfo } = require('./common')
 const { Address4 } = require('ip-address')
 const { BigInteger } = require('jsbn')
+const { influxWriteAPI } = require('./common')
 
 
 function IsValidLinkCIDR(cidr) {
@@ -143,6 +144,39 @@ router.post('/create', async (ctx) => {
     })
 
     ctx.body = await dao.getLink(network, host, name)
+})
+
+router.post('/report', async (ctx) => {
+    const serviceInfo = LoadServiceInfo(ctx)
+    if (serviceInfo == null) return
+
+    const { network, host } = serviceInfo
+    const { name, ping, rx, tx } = ctx.request.body
+    if (name == null) {
+        ctx.status = 400
+        return
+    }
+
+    const realPing = parseInt(ping, 10) || null
+    const realRx = parseInt(rx, 10) || null
+    const realTx = parseInt(tx, 10) || null
+
+    const dataPack = {
+        rx: realRx,
+        tx: realTx,
+        ping: realPing,
+    }
+
+    Object.keys(dataPack).forEach(k => {
+        if (dataPack[k] == null) {
+            delete dataPack[k]
+        }
+    })
+
+    influxWriteAPI.writeMultiInt('inf.network.monitoring', dataPack, { network, host, name })
+    // await influxWriteAPI.flush()
+
+    ctx.body = 'OK'
 })
 
 module.exports = router
