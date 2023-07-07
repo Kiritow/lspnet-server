@@ -147,7 +147,7 @@ router.post('/create', async (ctx) => {
 })
 
 router.post('/report', async (ctx) => {
-    const serviceInfo = LoadServiceInfo(ctx)
+    const serviceInfo = LoadServiceInfo(ctx, ["simple", "report"])
     if (serviceInfo == null) return
 
     const { network, host } = serviceInfo

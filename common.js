@@ -18,13 +18,18 @@ const influxDBClient = new InfluxDB({
 })
 const influxWriteAPI = new InfluxAPI(influxDBClient, influxDBOptions.org, influxDBOptions.bucket)
 
-function LoadServiceInfo(ctx) {
+function LoadServiceInfo(ctx, allowedTypes) {
+    const realAllowedTypes = allowedTypes || ["simple"]
+
     const { 'x-service-token': token } = ctx.headers
     if (token != null) {
-        const info = CheckServiceToken(token)
-        if (info != null) return info
+        const tokenInfo = CheckServiceToken(token)
+        if (tokenInfo != null) {
+            const tokenData = tokenInfo.data
+            if (realAllowedTypes.length < 1 || realAllowedTypes.indexOf(tokenData.type) != -1) return tokenData
+        }
     }
-    
+
     ctx.status = 403
     return
 }

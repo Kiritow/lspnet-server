@@ -2,7 +2,7 @@ const koa = require('koa')
 const koaBodyParser = require('koa-bodyparser')
 const koaJSON = require('koa-json')
 const koaRouter = require('koa-router')
-const { NewAsyncRootMW } = require('./middleware')
+const { NewAsyncRootMW, NewAsyncTokenRenewMW } = require('./middleware')
 const { CreateServiceToken } = require('./token')
 const wgRouter = require('./wg-api')
 const linkRouter = require('./link-api')
@@ -15,7 +15,6 @@ const app = new koa({
 app.use(koaBodyParser())
 app.use(koaJSON())
 app.use(NewAsyncRootMW())
-
 
 const router = new koaRouter()
 router.get('/', (ctx) => {
@@ -36,8 +35,22 @@ router.post('/token', async (ctx) => {
     }, 3600)
 })
 
-router.get('/info', async (ctx) => {
+router.post('/report_token', async (ctx) => {
     const serviceInfo = LoadServiceInfo(ctx)
+    if (serviceInfo == null) return
+
+    const { network, host } = serviceInfo
+
+    ctx.body = CreateServiceToken({
+        type: 'report',
+        renew: true,
+        host,
+        network,
+    }, 100 * 86400)
+})
+
+router.get('/info', async (ctx) => {
+    const serviceInfo = LoadServiceInfo(ctx, [])
     if (serviceInfo == null) return
 
     const { network, host } = serviceInfo

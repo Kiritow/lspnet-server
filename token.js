@@ -50,7 +50,7 @@ function CheckServiceToken(token, mustCreateAfter) {
             return null
         }
 
-        return data.data
+        return data
     } catch (e) {
         console.log(e)
         console.log(`invalid token: ${token}`)
