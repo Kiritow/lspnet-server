@@ -1,4 +1,5 @@
 const { BaseDaoClass } = require('./base-dao')
+const { logger } = require('./common')
 
 class DaoClass extends BaseDaoClass {
     async addOrUpdateKey(network, host, name, pubkey) {
@@ -67,6 +68,9 @@ class DaoClass extends BaseDaoClass {
     async heartbeatHost(network, host, ip) {
         const results = await this.query('select * from wghost where network=? and host=?', [network, host])
         if (results.length > 0 && results[0].static == 1) {
+            if (results[0].ip != ip) {
+                logger.warn(`static ip mismatch. network: ${network}, host: ${host} expected ${results[0].ip}, got ${ip}`)
+            }
             return
         }
         await this.query('insert into wghost(network, host, public_ip) values (?, ?, ?) on duplicate key update public_ip=?, last_seen=now()', [network, host, ip, ip])
