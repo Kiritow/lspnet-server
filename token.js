@@ -28,6 +28,11 @@ function CreateServiceToken(data, expireSeconds) {
 function CheckServiceToken(token, mustCreateAfter) {
     try {
         const parts = token.split('.')
+        if (parts.length != 4) {
+            console.log(`invalid or malformed token: ${token}`)
+            return null
+        }
+
         const edata = Buffer.from(parts[0], 'base64')
         const keyIndex = parseInt(parts[1], 10)
         const iv = Buffer.from(parts[2], 'base64')
