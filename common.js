@@ -18,23 +18,54 @@ const influxDBClient = new InfluxDB({
 })
 const influxWriteAPI = new InfluxAPI(influxDBClient, influxDBOptions.org, influxDBOptions.bucket)
 
+function CheckServiceTokenWithType(token, allowedTypes) {
+    const tokenInfo = CheckServiceToken(token)
+    if (tokenInfo != null) {
+        const tokenData = tokenInfo.data
+        if (allowedTypes == null || allowedTypes.length < 1 || allowedTypes.indexOf(tokenData.type) != -1) {
+            return tokenData
+        }
+    }
+
+    return null
+}
+
 function LoadServiceInfo(ctx, allowedTypes) {
     const realAllowedTypes = allowedTypes || ["simple"]
 
     const { 'x-service-token': token } = ctx.headers
     if (token != null) {
-        const tokenInfo = CheckServiceToken(token)
-        if (tokenInfo != null) {
-            const tokenData = tokenInfo.data
-            if (realAllowedTypes.length < 1 || realAllowedTypes.indexOf(tokenData.type) != -1) return tokenData
+        const tokenData = CheckServiceTokenWithType(token, realAllowedTypes)
+        if (tokenData != null) {
+            return tokenData
         }
+
+        ctx.status = 403
+        return
     }
 
-    ctx.status = 403
+    ctx.status = 401
     return
+}
+
+function LoadUserInfo(ctx) {
+    const ss_token = ctx.cookies.get('ss_token')
+    if (ss_token == null) {
+        return null
+    }
+
+    const tokenData = CheckServiceTokenWithType(ss_token, ['user'])
+    if (tokenData == null) {
+        return null
+    }
+
+    tokenData.token = ss_token
+    return tokenData
 }
 
 module.exports = {
     logger, dao, influxWriteAPI,
     LoadServiceInfo,
+    LoadUserInfo,
+    CheckServiceTokenWithType,
 }

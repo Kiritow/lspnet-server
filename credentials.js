@@ -24,9 +24,16 @@ function GetInfluxDBOptionSync() {
     }))
 }
 
+function GetGithubOAuthAppSync() {
+    return JSON.parse(fs.readFileSync('oauth_github.secret', {
+        encoding: 'utf-8',
+    }))
+}
+
 module.exports = { 
     GetMySQLOptionSync,
     GetRedisOptionSync,
     GetServiceTokenKeysSync,
     GetInfluxDBOptionSync,
+    GetGithubOAuthAppSync,
 }

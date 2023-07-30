@@ -7,13 +7,13 @@ const serviceKeys = GetServiceTokenKeysSync().map(k => Buffer.from(k, 'hex'))
 function CreateServiceToken(data, expireSeconds) {
     if (data == null) throw Error('token data cannot be null')
 
-    const tokenData = {
+    const tokenInfo = {
         data,
         iat: Math.floor(new Date().getTime() / 1000),
         exp: Math.floor(new Date().getTime() / 1000) + expireSeconds,
     }
 
-    const realData = Buffer.from(JSON.stringify(tokenData), 'utf-8')
+    const realData = Buffer.from(JSON.stringify(tokenInfo), 'utf-8')
     const iv = crypto.randomBytes(16)
     const keyIndex = Math.floor(Math.random() * serviceKeys.length)
     const key = serviceKeys[keyIndex]

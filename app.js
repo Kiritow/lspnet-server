@@ -6,7 +6,8 @@ const { NewAsyncRootMW } = require('./middleware')
 const { CreateServiceToken } = require('./token')
 const wgRouter = require('./wg-api')
 const linkRouter = require('./link-api')
-const { LoadServiceInfo, logger } = require('./common')
+const authRouter = require('./oauth-api')
+const { LoadServiceInfo, CheckServiceTokenWithType, logger } = require('./common')
 
 
 const app = new koa({
@@ -24,7 +25,12 @@ router.get('/', (ctx) => {
 router.post('/token', async (ctx) => {
     const { network, host, token } = ctx.request.body
     if (network == null || host == null || token == null) {
-        ctx.status = 403
+        ctx.status = 400
+        return
+    }
+
+    if (CheckServiceTokenWithType(token, ['auth']) == null) {
+        ctx.status = 401
         return
     }
 
@@ -62,6 +68,7 @@ router.get('/info', async (ctx) => {
 
 app.use(wgRouter.routes()).use(wgRouter.allowedMethods())
 app.use(linkRouter.routes()).use(linkRouter.allowedMethods())
+app.use(authRouter.routes()).use(authRouter.allowedMethods())
 app.use(router.routes()).use(router.allowedMethods())
 
 app.listen(6666)

@@ -1,7 +1,16 @@
 const { BaseDaoClass } = require('./base-dao')
-const { logger } = require('./common')
+
+const logger = require('./base-log')('app')
 
 class DaoClass extends BaseDaoClass {
+    async getPlatformUser(platform, userid) {
+        const result = await this.query('select * from users where platform=? and uid=?', [platform, userid])
+        if (result.length < 1) {
+            return null
+        }
+        return result[0]
+    }
+
     async addOrUpdateKey(network, host, name, pubkey) {
         await this.query('insert into pubkey(network, host, name, pubkey) values (?, ?, ?, ?) on duplicate key update pubkey=?', [network, host, name, pubkey, pubkey])
     }
