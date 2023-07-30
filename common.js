@@ -48,7 +48,7 @@ function LoadServiceInfo(ctx, allowedTypes) {
     return
 }
 
-function LoadUserInfo(ctx) {
+async function LoadUserInfo(ctx) {
     const ss_token = ctx.cookies.get('ss_token')
     if (ss_token == null) {
         return null
@@ -59,8 +59,13 @@ function LoadUserInfo(ctx) {
         return null
     }
 
-    tokenData.token = ss_token
-    return tokenData
+    const result = await dao.getPlatformUser(tokenData.platform, tokenData.userid)
+    if (result == null) {
+        logger.error(`platform: ${tokenData.platform} user: ${tokenData.userid} not found`)
+        return null
+    }
+
+    return result
 }
 
 module.exports = {

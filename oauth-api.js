@@ -12,9 +12,9 @@ const router = new koaRouter({
 })
 
 router.get('/login/github', async (ctx) => {
-    const userInfo = LoadUserInfo(ctx)
+    const userInfo = await LoadUserInfo(ctx)
     if (userInfo != null) {
-        const { username } = userInfo
+        const { uname: username } = userInfo
         const newToken = CreateServiceToken({
             type: 'auth',
             nonce: crypto.randomBytes(8).toString('hex'),
@@ -103,7 +103,7 @@ router.get('/login/github/callback', async (ctx) => {
 
     ctx.cookies.set('ss_token', CreateServiceToken({
         type: 'user',
-        username: userProfile.username,
+        userid: userProfile.userid,
         platform: 'github',
     }, 300), {
         httpOnly: true,
