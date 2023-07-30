@@ -1,6 +1,5 @@
 const koaRouter = require('koa-router')
 const axios = require('axios').default
-const crypto = require('crypto')
 const { logger, dao, LoadUserInfo } = require('./common')
 const { CreateServiceToken } = require('./token')
 const { GetGithubOAuthAppSync } = require('./credentials')
@@ -17,7 +16,6 @@ router.get('/login/github', async (ctx) => {
         const { uname: username } = userInfo
         const newToken = CreateServiceToken({
             type: 'auth',
-            nonce: crypto.randomBytes(8).toString('hex'),
         }, 180)
         ctx.body = {
             username,
