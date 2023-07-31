@@ -106,7 +106,6 @@ router.get('/login/github/callback', async (ctx) => {
     }, 300), {
         httpOnly: true,
         secure: true,
-        sameSite: true,
         domain: ctx.host,
         maxAge: 300000,
     })
