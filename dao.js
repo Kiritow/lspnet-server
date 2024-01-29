@@ -1,6 +1,11 @@
+const crypto = require('crypto')
 const { BaseDaoClass } = require('./base-dao')
 
 const logger = require('./base-log')('app')
+
+function getStringHash(s) {
+    return crypto.createHash('sha256').update(s).digest('hex')
+}
 
 class DaoClass extends BaseDaoClass {
     async getPlatformUser(platform, userid) {
@@ -83,6 +88,58 @@ class DaoClass extends BaseDaoClass {
             return
         }
         await this.query('insert into wghost(network, host, public_ip) values (?, ?, ?) on duplicate key update public_ip=?, last_seen=now()', [network, host, ip, ip])
+    }
+
+    async getAllTunnelMeta(network) {
+        return await this.query('select * from tunnel_meta where network=?', [network])
+    }
+
+    async createTunnelMeta(network, host, frpsToken) {
+        await this.query('insert into tunnel_meta(network, host, frps_token) values (?, ?, ?)', [network, host, frpsToken])
+    }
+
+    async getAllTunnels(network) {
+        return await this.query('select * from tunnel where network=? and status=0', [network])
+    }
+
+    async refreshTunnelConfig(network, newConfigMap) {
+        const conn = await this.getConnection()
+        try {
+            await conn.begin()
+            await conn.query('delete from tunnel_config where network=?', [network])
+            await Promise.all(Array.from(newConfigMap.keys()).map(async host => {
+                if (newConfigMap.get(host).frps) {
+                    const hash = getStringHash(newConfigMap.get(host).frps)
+                    await conn.query('insert into tunnel_config(network, host, name, config, config_hash) values (?, ?, ?, ?, ?)', [network, host, `frps-${host}`, newConfigMap.get(host).frps, hash])
+                }
+
+                await Promise.all(newConfigMap.get(host).frpc.map(async (configStr, configIndex) => {
+                    const hash = getStringHash(configStr)
+                    await conn.query('insert into tunnel_config(network, host, name, config, config_hash) values (?, ?, ?, ?, ?)', [network, host, `frpc-${host}-${configIndex+1}`, configStr, hash])
+                }))
+
+                await Promise.all(newConfigMap.get(host).gost.map(async (configStr, configIndex) => {
+                    const hash = getStringHash(configStr)
+                    await conn.query('insert into tunnel_config(network, host, name, config, config_hash) values (?, ?, ?, ?, ?)', [network, host, `gost-${host}-${configIndex+1}`, configStr, hash])
+                }))
+            }))
+            await conn.commit()
+        } finally {
+            conn.close()
+        }
+    }
+
+    async getTunnelConfigByHost(network, host) {
+        return await this.query('select * from tunnel_config where network=? and host=?', [network, host])
+    }
+
+    async getTunnelConfig(network, host, name) {
+        const results = await this.query('select * from tunnel_config where network=? and host=? and name=?', [network, host, name])
+        if (results.length < 1) {
+            return null
+        }
+
+        return results[0]
     }
 }
 

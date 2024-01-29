@@ -6,6 +6,7 @@ const { NewAsyncRootMW } = require('./middleware')
 const { CreateServiceToken } = require('./token')
 const wgRouter = require('./wg-api')
 const linkRouter = require('./link-api')
+const tunnelRouter = require('./tunnel-api')
 const authRouter = require('./oauth-api')
 const { LoadServiceInfo, CheckServiceTokenWithType, logger } = require('./common')
 
@@ -68,6 +69,7 @@ router.get('/info', async (ctx) => {
 
 app.use(wgRouter.routes()).use(wgRouter.allowedMethods())
 app.use(linkRouter.routes()).use(linkRouter.allowedMethods())
+app.use(tunnelRouter.routes()).use(tunnelRouter.allowedMethods())
 app.use(authRouter.routes()).use(authRouter.allowedMethods())
 app.use(router.routes()).use(router.allowedMethods())
 

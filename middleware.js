@@ -12,6 +12,7 @@ function NewAsyncRootMW() {
 
             await next()
         } catch (e) {
+            console.log(e)
             logger.error(e)
 
             ctx.status = 500
