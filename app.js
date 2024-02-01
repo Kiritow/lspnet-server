@@ -2,18 +2,35 @@ const koa = require('koa')
 const koaBodyParser = require('koa-bodyparser')
 const koaJSON = require('koa-json')
 const koaRouter = require('koa-router')
+const koaSession = require('koa-session')
+
 const { NewAsyncRootMW } = require('./middleware')
 const { CreateServiceToken } = require('./token')
 const wgRouter = require('./wg-api')
 const linkRouter = require('./link-api')
 const tunnelRouter = require('./tunnel-api')
 const authRouter = require('./oauth-api')
+const adminRouter = require('./admin-api')
 const { LoadServiceInfo, CheckServiceTokenWithType, logger } = require('./common')
+const { GetKoaAppSecretSync } = require('./credentials')
 
 
 const app = new koa({
     proxy: true,
 })
+app.keys = GetKoaAppSecretSync()
+app.use(koaSession({
+    key: 'ss_token',
+    maxAge: 86400000,
+    autoCommit: true,
+    overwrite: true,
+    httpOnly: true,
+    signed: true,
+    rolling: false,
+    renew: false,
+    secure: false,  // we have nginx/cloudflare in front of us.
+}, app))
+
 app.use(koaBodyParser())
 app.use(koaJSON())
 app.use(NewAsyncRootMW())
@@ -71,6 +88,7 @@ app.use(wgRouter.routes()).use(wgRouter.allowedMethods())
 app.use(linkRouter.routes()).use(linkRouter.allowedMethods())
 app.use(tunnelRouter.routes()).use(tunnelRouter.allowedMethods())
 app.use(authRouter.routes()).use(authRouter.allowedMethods())
+app.use(adminRouter.routes()).use(adminRouter.allowedMethods())
 app.use(router.routes()).use(router.allowedMethods())
 
 app.listen(6666)

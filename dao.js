@@ -8,8 +8,16 @@ function getStringHash(s) {
 }
 
 class DaoClass extends BaseDaoClass {
-    async getPlatformUser(platform, userid) {
-        const result = await this.query('select * from users where platform=? and uid=?', [platform, userid])
+    async getPlatformUser(platform, platformUid) {
+        const result = await this.query('select * from users where platform=? and platform_uid=?', [platform, platformUid])
+        if (result.length < 1) {
+            return null
+        }
+        return result[0]
+    }
+
+    async getUserByID(uid) {
+        const result = await this.query('select * from users where uid=?', [uid])
         if (result.length < 1) {
             return null
         }

@@ -30,10 +30,17 @@ function GetGithubOAuthAppSync() {
     }))
 }
 
+function GetKoaAppSecretSync() {
+    return JSON.parse(fs.readFileSync('koa.secret', {
+        encoding: 'utf-8',
+    }))
+}
+
 module.exports = { 
     GetMySQLOptionSync,
     GetRedisOptionSync,
     GetServiceTokenKeysSync,
     GetInfluxDBOptionSync,
     GetGithubOAuthAppSync,
+    GetKoaAppSecretSync,
 }

@@ -48,29 +48,8 @@ function LoadServiceInfo(ctx, allowedTypes) {
     return
 }
 
-async function LoadUserInfo(ctx) {
-    const ss_token = ctx.cookies.get('ss_token')
-    if (ss_token == null) {
-        return null
-    }
-
-    const tokenData = CheckServiceTokenWithType(ss_token, ['user'])
-    if (tokenData == null) {
-        return null
-    }
-
-    const result = await dao.getPlatformUser(tokenData.platform, tokenData.userid)
-    if (result == null) {
-        logger.error(`platform: ${tokenData.platform} user: ${tokenData.userid} not found`)
-        return null
-    }
-
-    return result
-}
-
 module.exports = {
     logger, dao, influxWriteAPI,
     LoadServiceInfo,
-    LoadUserInfo,
     CheckServiceTokenWithType,
 }

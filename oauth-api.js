@@ -1,31 +1,12 @@
 const koaRouter = require('koa-router')
 const axios = require('axios').default
-const { logger, dao, LoadUserInfo } = require('./common')
-const { CreateServiceToken } = require('./token')
+const { logger, dao } = require('./common')
 const { GetGithubOAuthAppSync } = require('./credentials')
 
 const { id: GITHUB_CLIENT_ID, secret: GITHUB_CLIENT_SECRET } = GetGithubOAuthAppSync()
 
 const router = new koaRouter({
     prefix: '/auth',
-})
-
-router.get('/login/github', async (ctx) => {
-    const userInfo = await LoadUserInfo(ctx)
-    if (userInfo != null) {
-        const { uname: username } = userInfo
-        const newToken = CreateServiceToken({
-            type: 'auth',
-        }, 180)
-        ctx.body = {
-            username,
-            token: newToken,
-        }
-        return
-    }
-
-    const redirectUri = encodeURIComponent(`https://${ctx.host}/auth/login/github/callback`)
-    ctx.redirect(`https://github.com/login/oauth/authorize?client_id=${GITHUB_CLIENT_ID}&redirect_uri=${redirectUri}`)
 })
 
 async function GetGithubAccessToken(code) {
@@ -73,6 +54,12 @@ async function LoadGithubProfile(accessToken) {
     }
 }
 
+router.get('/login/github', async (ctx) => {
+    const serviceUri = encodeURIComponent(ctx.query.service || '/admin')
+    const redirectUri = encodeURIComponent(`https://${ctx.host}/auth/login/github/callback?service=${serviceUri}`)
+    ctx.redirect(`https://github.com/login/oauth/authorize?client_id=${GITHUB_CLIENT_ID}&redirect_uri=${redirectUri}`)
+})
+
 router.get('/login/github/callback', async (ctx) => {
     const { code } = ctx.query
     if (code == null || code.length < 1) {
@@ -99,18 +86,18 @@ router.get('/login/github/callback', async (ctx) => {
         return
     }
 
-    ctx.cookies.set('ss_token', CreateServiceToken({
-        type: 'user',
-        userid: userProfile.userid,
-        platform: 'github',
-    }, 300), {
-        httpOnly: true,
-        secure: true,
-        domain: ctx.host,
-        maxAge: 300000,
-    })
+    ctx.session.uid = accountInfo.uid
 
-    ctx.redirect(`https://${ctx.host}/auth/login/github`)
+    let serviceUrl = decodeURIComponent(ctx.query.service)
+    if (!serviceUrl.startsWith('/')) {
+        serviceUrl = '/admin'
+    }
+    ctx.redirect(serviceUrl)
+})
+
+router.get('/logout', ctx => {
+    ctx.session = null
+    ctx.body = 'You have logged out'
 })
 
 module.exports = router
