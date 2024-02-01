@@ -5,14 +5,14 @@ const koaRouter = require('koa-router')
 const koaSession = require('koa-session')
 
 const { NewAsyncRootMW } = require('./middleware')
-const { CreateServiceToken } = require('./token')
 const wgRouter = require('./wg-api')
 const linkRouter = require('./link-api')
 const tunnelRouter = require('./tunnel-api')
 const authRouter = require('./oauth-api')
 const adminRouter = require('./admin-api')
-const { LoadServiceInfo, CheckServiceTokenWithType, logger } = require('./common')
+const { LoadServiceInfo, logger } = require('./common')
 const { GetKoaAppSecretSync } = require('./credentials')
+const { CreateReportToken, CreateSimpleToken, CheckAuthToken } = require('./simple-token')
 
 
 const app = new koa({
@@ -47,16 +47,12 @@ router.post('/token', async (ctx) => {
         return
     }
 
-    if (CheckServiceTokenWithType(token, ['auth']) == null) {
+    if (CheckAuthToken(token) == null) {
         ctx.status = 401
         return
     }
 
-    ctx.body = CreateServiceToken({
-        type: 'simple',
-        host,
-        network,
-    }, 3600)
+    ctx.body = CreateSimpleToken(network, host)
 })
 
 router.post('/report_token', async (ctx) => {
@@ -65,12 +61,7 @@ router.post('/report_token', async (ctx) => {
 
     const { network, host } = serviceInfo
 
-    ctx.body = CreateServiceToken({
-        type: 'report',
-        renew: true,
-        host,
-        network,
-    }, 100 * 86400)
+    ctx.body = CreateReportToken(network, host)
 })
 
 router.get('/info', async (ctx) => {

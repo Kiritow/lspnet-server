@@ -23,8 +23,21 @@ function CreateAuthToken() {
     }, 180)
 }
 
+function CheckAuthToken(token) {
+    const tokenInfo = CheckServiceToken(token)
+    if (tokenInfo != null) {
+        const tokenData = tokenInfo.data
+        if (tokenData.type != 'auth') {
+            return tokenData
+        }
+    }
+
+    return null
+}
+
 module.exports = {
     CreateSimpleToken,
     CreateReportToken,
     CreateAuthToken,
+    CheckAuthToken,
 }

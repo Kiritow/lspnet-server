@@ -1,6 +1,5 @@
 const koaRouter = require('koa-router')
 const crypto = require('crypto')
-const fs = require('fs')
 const { logger, dao, LoadServiceInfo } = require('./common')
 
 const router = new koaRouter({
