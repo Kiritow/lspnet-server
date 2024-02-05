@@ -12,8 +12,7 @@ const router = new koaRouter({
 router.get('/', async ctx => {
     // redirect if not logged in
     if (ctx.session.isNew || ctx.session.uid == null || ctx.session.uid <= 0) {
-        const redirectUri = encodeURIComponent(`https://${ctx.host}/admin`)
-        ctx.redirect(`/auth/login/github?service=${redirectUri}`)
+        ctx.redirect(`/auth/login/github?service=${encodeURIComponent('/admin')}`)
         return
     }
 

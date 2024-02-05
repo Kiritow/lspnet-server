@@ -55,7 +55,12 @@ async function LoadGithubProfile(accessToken) {
 }
 
 router.get('/login/github', async (ctx) => {
-    const serviceUri = encodeURIComponent(ctx.query.service || '/admin')
+    let serviceUri = ctx.query.service || '/admin'
+    if (!serviceUri.startsWith('/')) {
+        logger.warn(`filter illegal service: ${serviceUri}`)
+        serviceUri = '/admin'
+    }
+    serviceUri = encodeURIComponent(serviceUri)
     const redirectUri = encodeURIComponent(`https://${ctx.host}/auth/login/github/callback?service=${serviceUri}`)
     ctx.redirect(`https://github.com/login/oauth/authorize?client_id=${GITHUB_CLIENT_ID}&redirect_uri=${redirectUri}`)
 })
