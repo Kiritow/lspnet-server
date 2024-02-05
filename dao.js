@@ -98,16 +98,48 @@ class DaoClass extends BaseDaoClass {
         await this.query('insert into wghost(network, host, public_ip) values (?, ?, ?) on duplicate key update public_ip=?, last_seen=now()', [network, host, ip, ip])
     }
 
+    async getAllTunnels(network, enabledOnly) {
+        if (enabledOnly) {
+            return await this.query('select * from tunnel where network=? and status=0', [network])
+        }
+
+        return await this.query('select * from tunnel where network=?', [network])
+    }
+
+    async createTunnel(network, type, protocol, host, listen, targetHost, targetIP, targetPort, description) {
+        await this.query('insert into tunnel(network, type, protocol, host, listen, target_host, target_ip, target_port, description, status) values (?,?,?,?,?,?,?,?,?,?)', 
+        [network, type, protocol, host, listen, targetHost, targetIP, targetPort, description, 1])
+    }
+
+    async setTunnelStatus(id, enable) {
+        const targetStatus = enable ? 0 : 1
+        await this.query('update tunnel set status=? where id=?', [targetStatus, id])
+    }
+
+    async getTunnelById(id) {
+        const result = await this.query('select * from tunnel where id=?', [id])
+        if (result.length < 1) {
+            return null
+        }
+
+        return result[0]
+    }
+
     async getAllTunnelMeta(network) {
         return await this.query('select * from tunnel_meta where network=?', [network])
     }
 
-    async createTunnelMeta(network, host, frpsToken) {
-        await this.query('insert into tunnel_meta(network, host, frps_token) values (?, ?, ?)', [network, host, frpsToken])
+    async createTunnelMeta(network, host, frpsPort, frpsToken) {
+        await this.query('insert into tunnel_meta(network, host, frps_port, frps_token) values (?, ?, ?, ?)', [network, host, frpsPort, frpsToken])
     }
 
-    async getAllTunnels(network) {
-        return await this.query('select * from tunnel where network=? and status=0', [network])
+    async getTunnelMetaByHost(network, host) {
+        const result = await this.query('select * from tunnel_meta where network=? and host=?', [network, host])
+        if (result.length < 1) {
+            return null
+        }
+
+        return result[0]
     }
 
     async refreshTunnelConfig(network, newConfigMap) {

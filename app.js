@@ -28,7 +28,7 @@ app.use(koaSession({
     signed: true,
     rolling: false,
     renew: false,
-    secure: false,  // we have nginx/cloudflare in front of us.
+    secure: true,  // we have nginx/cloudflare in front of us.
 }, app))
 
 app.use(koaBodyParser())
