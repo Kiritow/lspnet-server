@@ -30,10 +30,15 @@ function CheckServiceTokenWithType(token, allowedTypes) {
     return null
 }
 
+function GetRequestToken(ctx) {
+    const { 'x-service-token': token } = ctx.headers
+    return token
+}
+
 function LoadServiceInfo(ctx, allowedTypes) {
     const realAllowedTypes = allowedTypes || ["simple"]
 
-    const { 'x-service-token': token } = ctx.headers
+    const token = GetRequestToken(ctx)
     if (token != null) {
         const tokenData = CheckServiceTokenWithType(token, realAllowedTypes)
         if (tokenData != null) {
@@ -50,6 +55,7 @@ function LoadServiceInfo(ctx, allowedTypes) {
 
 module.exports = {
     logger, dao, influxWriteAPI,
+    GetRequestToken,
     LoadServiceInfo,
     CheckServiceTokenWithType,
 }

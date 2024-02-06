@@ -1,5 +1,6 @@
 const koaRouter = require('koa-router')
-const { logger, dao, LoadServiceInfo } = require('./common')
+const { logger, dao, GetRequestToken } = require('./common')
+const { CheckTunnelPullToken } = require('./simple-token')
 const { BuildConfigForNetwork } = require('./tunnel')
 
 const router = new koaRouter({
@@ -7,7 +8,7 @@ const router = new koaRouter({
 })
 
 router.get('/list', async ctx => {
-    const serviceInfo = LoadServiceInfo(ctx)
+    const serviceInfo = CheckTunnelPullToken(GetRequestToken(ctx))
     if (serviceInfo == null) return
 
     const { network, host } = serviceInfo
@@ -47,7 +48,7 @@ router.get('/list', async ctx => {
 })
 
 router.post('/refresh', async ctx => {
-    const serviceInfo = LoadServiceInfo(ctx)
+    const serviceInfo = CheckTunnelPullToken(GetRequestToken(ctx))
     if (serviceInfo == null) return
 
     const { network } = serviceInfo
@@ -57,7 +58,7 @@ router.post('/refresh', async ctx => {
 })
 
 router.get('/config', async ctx => {
-    const serviceInfo = LoadServiceInfo(ctx)
+    const serviceInfo = CheckTunnelPullToken(GetRequestToken(ctx))
     if (serviceInfo == null) return
 
     const { network, host } = serviceInfo

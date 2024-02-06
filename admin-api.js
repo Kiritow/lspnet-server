@@ -1,6 +1,6 @@
 const crypto = require('crypto')
 const koaRouter = require('koa-router')
-const { CreateAuthToken } = require('./simple-token')
+const { CreateAuthToken, CreateTunnelPullToken } = require('./simple-token')
 
 const { logger, dao } = require('./common')
 const { BuildConfigForNetworkAsync } = require('./tunnel')
@@ -62,6 +62,24 @@ function mustLogin(ctx) {
 
     return false
 }
+
+router.get('/tunnel/token', async ctx => {
+    if (mustLogin(ctx)) return
+
+    const { network, host } = ctx.query
+    if (!network || !host) {
+        ctx.body = {
+            message: 'invalid network or host',
+        }
+        return
+    }
+
+    ctx.body = {
+        network,
+        host,
+        token: CreateTunnelPullToken(network, host),
+    }
+})
 
 router.get('/tunnel/list', async ctx => {
     if (mustLogin(ctx)) return

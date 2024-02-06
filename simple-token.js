@@ -25,11 +25,25 @@ function CreateAuthToken() {
 
 function CheckAuthToken(token) {
     const tokenInfo = CheckServiceToken(token)
-    if (tokenInfo != null) {
-        const tokenData = tokenInfo.data
-        if (tokenData.type != 'auth') {
-            return tokenData
-        }
+    if (tokenInfo != null && tokenInfo.data.type == 'auth') {
+        return tokenInfo.data
+    }
+
+    return null
+}
+
+function CreateTunnelPullToken(network, host) {
+    return CreateServiceToken({
+        type: 'tunnel',
+        network,
+        host,
+    }, 180 * 86400)
+}
+
+function CheckTunnelPullToken(token) {
+    const tokenInfo = CheckServiceToken(token)
+    if (tokenInfo != null && tokenInfo.data.type == 'tunnel') {
+        return tokenInfo.data
     }
 
     return null
@@ -40,4 +54,6 @@ module.exports = {
     CreateReportToken,
     CreateAuthToken,
     CheckAuthToken,
+    CreateTunnelPullToken,
+    CheckTunnelPullToken,
 }
