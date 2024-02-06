@@ -125,6 +125,10 @@ class DaoClass extends BaseDaoClass {
         return result[0]
     }
 
+    async heartbeatTunnelMeta(network, host) {
+        await this.query('update tunnel_meta set last_seen=now(), update_time=update_time where network=? and host=?', [network, host])
+    }
+
     async getAllTunnelMeta(network) {
         return await this.query('select * from tunnel_meta where network=?', [network])
     }

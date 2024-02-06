@@ -75,7 +75,16 @@ router.get('/config', async ctx => {
     }
 })
 
-router.post('/report', ctx => {
+router.post('/report', async ctx => {
+    const serviceInfo = CheckTunnelPullToken(GetRequestToken(ctx))
+    if (serviceInfo == null) return
+
+    const { network, host } = serviceInfo
+    const { running } = ctx.request.body
+
+    logger.info(`network: ${network} host: ${host} running: ${running.join(',')}`)
+    await dao.heartbeatTunnelMeta(network, host)
+
     ctx.body = 'OK'
 })
 
