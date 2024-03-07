@@ -11,12 +11,7 @@ const router = new koaRouter({
 
 router.use(async (ctx, next) => {
     try {
-        logger.info(`${ctx.method} ${ctx.URL}`)
-        logger.info(ctx.headers)
-
-        const startTime = new Date()
         await next()
-        logger.info(`${ctx.method} ${ctx.URL} [${ctx.status}] (${new Date().getTime() - startTime.getTime()}ms)`)
     } catch (e) {
         logger.error(e)
 
