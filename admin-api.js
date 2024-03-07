@@ -9,64 +9,80 @@ const router = new koaRouter({
     prefix: '/admin',
 })
 
-router.get('/', async ctx => {
-    // redirect if not logged in
+router.use(async (ctx, next) => {
+    try {
+        logger.info(`${ctx.method} ${ctx.URL}`)
+        logger.info(ctx.headers)
+
+        const startTime = new Date()
+        await next()
+        logger.info(`${ctx.method} ${ctx.URL} [${ctx.status}] (${new Date().getTime() - startTime.getTime()}ms)`)
+    } catch (e) {
+        logger.error(e)
+
+        ctx.status = 500
+        ctx.body = {
+            message: `server internal error: ${e}`
+        }
+    }
+})
+
+async function getWebUser(ctx) {
     if (ctx.session.isNew || ctx.session.uid == null || ctx.session.uid <= 0) {
-        ctx.redirect(`/auth/login/github?service=${encodeURIComponent('/admin')}`)
-        return
+        return null
     }
 
     const accountInfo = await dao.getUserByID(ctx.session.uid)
     if (accountInfo == null) {
         logger.warn(`invalid uid: ${ctx.session.uid}`)
-        ctx.body = 'invalid user'
-        return
+        return null
     }
 
-    const token = CreateAuthToken()
-    ctx.body = {
-        username: accountInfo.uname,
-        token,
-    }
-})
+    return accountInfo
+}
 
-router.get('/user', async ctx => {
-    if (ctx.session.isNew || ctx.session.uid == null || ctx.session.uid <= 0) {
+async function mustLogin(ctx) {
+    const accountInfo = await getWebUser(ctx)
+    if (!accountInfo) {
         ctx.body = {
             message: 'user not logged in'
         }
         return
     }
 
-    const accountInfo = await dao.getUserByID(ctx.session.uid)
-    if (accountInfo == null) {
-        logger.warn(`invalid uid: ${ctx.session.uid}`)
-        ctx.body = {
-            message: 'invalid user'
-        }
-        return
-    }
+    return accountInfo
+}
+
+router.get('/user', async ctx => {
+    const accountInfo = await mustLogin(ctx)
+    if (!accountInfo) return
 
     ctx.body = {
         message: 'ok',
-        username: accountInfo.uname,
+        data: {
+            username: accountInfo.uname,
+        }
     }
 })
 
-function mustLogin(ctx) {
-    if (ctx.session.isNew || ctx.session.uid == null || ctx.session.uid <= 0) {
-        ctx.status = 403
-        ctx.body = 'user not logged in'
-        return true
+router.post('/token', async ctx => {
+    const accountInfo = await mustLogin(ctx)
+    if (!accountInfo) return
+
+    const authToken = CreateAuthToken()
+    ctx.body = {
+        message: 'ok',
+        data: {
+            token: authToken,
+        }
     }
+})
 
-    return false
-}
+router.post('/tunnel/token', async ctx => {
+    const accountInfo = await mustLogin(ctx)
+    if (!accountInfo) return
 
-router.get('/tunnel/token', async ctx => {
-    if (mustLogin(ctx)) return
-
-    const { network, host } = ctx.query
+    const { network, host } = ctx.request.body
     if (!network || !host) {
         ctx.body = {
             message: 'invalid network or host',
@@ -75,14 +91,16 @@ router.get('/tunnel/token', async ctx => {
     }
 
     ctx.body = {
-        network,
-        host,
-        token: CreateTunnelPullToken(network, host),
+        message: 'ok',
+        data: {
+            token: CreateTunnelPullToken(network, host),
+        },
     }
 })
 
 router.get('/tunnel/list', async ctx => {
-    if (mustLogin(ctx)) return
+    const accountInfo = await mustLogin(ctx)
+    if (!accountInfo) return
 
     const { network } = ctx.query
     if (!network) {
@@ -119,7 +137,8 @@ router.get('/tunnel/list', async ctx => {
 })
 
 router.post('/tunnel/create', async ctx => {
-    if (mustLogin(ctx)) return
+    const accountInfo = await mustLogin(ctx)
+    if (!accountInfo) return
 
     const { network, type, protocol, host, listen, targetHost, targetIP, targetPort, description } = ctx.request.body
     const realType = {
@@ -205,7 +224,8 @@ router.post('/tunnel/create', async ctx => {
 })
 
 router.post('/tunnel/disable', async ctx => {
-    if (mustLogin(ctx)) return
+    const accountInfo = await mustLogin(ctx)
+    if (!accountInfo) return
 
     const { id } = ctx.request.body
     const tunnel = await dao.getTunnelById(id)
@@ -224,7 +244,8 @@ router.post('/tunnel/disable', async ctx => {
 })
 
 router.post('/tunnel/enable', async ctx => {
-    if (mustLogin(ctx)) return
+    const accountInfo = await mustLogin(ctx)
+    if (!accountInfo) return
 
     const { id } = ctx.request.body
     const tunnel = await dao.getTunnelById(id)
@@ -243,7 +264,8 @@ router.post('/tunnel/enable', async ctx => {
 })
 
 router.get('/host/list', async ctx => {
-    if (mustLogin(ctx)) return
+    const accountInfo = await mustLogin(ctx)
+    if (!accountInfo) return
 
     const { network } = ctx.query
     if (!network) {
@@ -266,7 +288,8 @@ router.get('/host/list', async ctx => {
 })
 
 router.post('/host/create', async ctx => {
-    if (mustLogin(ctx)) return
+    const accountInfo = await mustLogin(ctx)
+    if (!accountInfo) return
 
     const { network, host, ip, frpsPort } = ctx.request.body
     if (!network || !host ) {
