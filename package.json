@@ -2,12 +2,20 @@
   "name": "lspnet-server",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "dist/index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "build": "npm run eslint && rimraf dist/ && tsc",
+    "eslint": "eslint -c .eslintrc.js"
   },
   "author": "",
-  "license": "ISC",
+  "license": "MIT",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "Readme.md",
+    "package.json",
+    "package-lock.json"
+  ],
   "dependencies": {
     "@influxdata/influxdb-client": "^1.33.2",
     "axios": "^1.4.0",
@@ -22,5 +30,16 @@
     "moment": "^2.29.4",
     "mysql": "^2.18.1",
     "winston": "^3.8.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.5.5",
+    "@typescript-eslint/eslint-plugin": "^8.5.0",
+    "depcheck": "^1.4.7",
+    "eslint": "^9.10.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-prettier": "^5.2.1",
+    "rimraf": "^6.0.1",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.6.2"
   }
 }
