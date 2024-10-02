@@ -4,11 +4,11 @@ import { GetServiceTokenKeysSync } from "./credentials";
 // Generate new key with crypto.randomBytes(32).toString('hex')
 const serviceKeys = GetServiceTokenKeysSync().map((k) => Buffer.from(k, "hex"));
 
-interface ServiceTokenData {
+export interface ServiceTokenData {
     type: string;
 }
 
-interface ServiceToken {
+export interface ServiceToken {
     data: ServiceTokenData;
     iat: number;
     exp: number;

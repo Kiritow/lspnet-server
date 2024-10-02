@@ -13,8 +13,8 @@ function lineNumber() {
 
 interface LoggerOptions {
     level: string;
-    filename: string;
-    logpath: string;
+    filename?: string;
+    logpath?: string;
 
     file?: boolean;
     console?: boolean;
@@ -38,6 +38,12 @@ export class Logger {
             const logpath = options.logpath;
             const filename = options.filename;
 
+            if (logpath === undefined || filename === undefined) {
+                throw new Error(
+                    "logpath and filename must be set when file is true"
+                );
+            }
+
             this._logger.add(
                 new transports.File({
                     filename: path.join(logpath, `${filename}.log`),
@@ -58,7 +64,7 @@ export class Logger {
             );
         }
 
-        if (options?.console || options?.file == null) {
+        if (options?.console || options?.file === undefined) {
             this._logger.add(
                 new transports.Console({
                     level: options.level,

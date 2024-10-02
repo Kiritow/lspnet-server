@@ -115,10 +115,7 @@ export class BaseDaoClass {
     }
 
     // call release or destroy on Connection object later.
-    /**
-     * @returns {Promise<BaseConnection>}
-     */
-    async getConnection() {
+    async getConnection(): Promise<BaseConnection> {
         return new Promise((resolve, reject) => {
             this.pool.getConnection((err, conn) => {
                 if (err) {
