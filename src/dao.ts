@@ -1,17 +1,66 @@
-import crypto from "crypto";
 import { BaseDaoClass } from "./base-dao";
 import getOrCreateLogger from "./base-log";
 
 const logger = getOrCreateLogger("app");
 
-function getStringHash(s: string) {
-    return crypto.createHash("sha256").update(s).digest("hex");
+export interface UserInfo {
+    uid: number;
+    platform: string;
+    platform_uid: string;
+    uname: string;
 }
 
-export interface TunnelConfig {
-    frps: string | null;
-    frpc: string[];
-    gost: string[];
+export interface KeyInfo {
+    network: string;
+    host: string;
+    name: string;
+    pubkey: string;
+}
+
+export interface NetworkConfig {
+    network: string;
+    subnet: string;
+}
+
+export interface WireGuardLinkConfig {
+    network: string;
+    host: string;
+    name: string;
+    address: string;
+    mtu: number;
+    keepalive: number;
+}
+
+export interface TunnelInfo {
+    id: number;
+    network: string;
+    type: number;
+    protocol: number;
+    host: string;
+    listen: number;
+    target_host: string;
+    target_ip: string;
+    target_port: number;
+    description: string;
+    status: number;
+}
+
+export interface TunnelFinalConfig {
+    network: string;
+    host: string;
+    name: string;
+    config: string;
+    config_hash: string;
+}
+
+export interface TunnelMeta {
+    network: string;
+    host: string;
+    ip: string;
+    frps_port: number;
+    frps_token: string;
+    frps_use_kcp: number;
+    last_seen: Date;
 }
 
 export class DaoClass extends BaseDaoClass {
@@ -26,7 +75,7 @@ export class DaoClass extends BaseDaoClass {
         return result[0];
     }
 
-    async getUserByID(uid: string) {
+    async getUserByID(uid: string): Promise<UserInfo | null> {
         const result = await this.query("select * from users where uid=?", [
             uid,
         ]);
@@ -48,7 +97,11 @@ export class DaoClass extends BaseDaoClass {
         );
     }
 
-    async getKey(network: string, host: string, name: string) {
+    async getKey(
+        network: string,
+        host: string,
+        name: string
+    ): Promise<string | null> {
         const results = await this.query(
             "select * from pubkey where network=? and host=? and name=?",
             [network, host, name]
@@ -60,16 +113,11 @@ export class DaoClass extends BaseDaoClass {
         return results[0].pubkey;
     }
 
-    async getAllKeys(network: string, host: string) {
-        const results = await this.query(
+    async getAllKeys(network: string, host: string): Promise<KeyInfo[]> {
+        return await this.query(
             "select * from pubkey where network=? and host=?",
             [network, host]
         );
-        if (results.length < 1) {
-            return null;
-        }
-
-        return results;
     }
 
     async addKey(network: string, host: string, name: string, pubkey: string) {
@@ -79,7 +127,7 @@ export class DaoClass extends BaseDaoClass {
         );
     }
 
-    async getNetworkConfig(network: string) {
+    async getNetworkConfig(network: string): Promise<NetworkConfig | null> {
         const results = await this.query(
             "select * from config where network=?",
             [network]
@@ -88,16 +136,14 @@ export class DaoClass extends BaseDaoClass {
         return results[0];
     }
 
-    async getAllLinks(network: string, host: string) {
-        const results = await this.query(
+    async getAllLinks(
+        network: string,
+        host: string
+    ): Promise<WireGuardLinkConfig[]> {
+        return await this.query(
             "select * from wglink where network=? and host=?",
             [network, host]
         );
-        if (results.length < 1) {
-            return null;
-        }
-
-        return results;
     }
 
     async createLink(
@@ -127,7 +173,11 @@ export class DaoClass extends BaseDaoClass {
         }
     }
 
-    async getLink(network: string, host: string, name: string) {
+    async getLink(
+        network: string,
+        host: string,
+        name: string
+    ): Promise<WireGuardLinkConfig | null> {
         const results = await this.query(
             "select * from wglink where network=? and host=? and name=?",
             [network, host, name]
@@ -158,7 +208,10 @@ export class DaoClass extends BaseDaoClass {
         );
     }
 
-    async getAllTunnels(network: string, enabledOnly: boolean) {
+    async getAllTunnels(
+        network: string,
+        enabledOnly: boolean
+    ): Promise<TunnelInfo[]> {
         if (enabledOnly) {
             return await this.query(
                 "select * from tunnel where network=? and status=0",
@@ -207,7 +260,7 @@ export class DaoClass extends BaseDaoClass {
         ]);
     }
 
-    async getTunnelById(id: number) {
+    async getTunnelById(id: number): Promise<TunnelInfo | null> {
         const result = await this.query("select * from tunnel where id=?", [
             id,
         ]);
@@ -225,7 +278,7 @@ export class DaoClass extends BaseDaoClass {
         );
     }
 
-    async getAllTunnelMeta(network: string) {
+    async getAllTunnelMeta(network: string): Promise<TunnelMeta[]> {
         return await this.query("select * from tunnel_meta where network=?", [
             network,
         ]);
@@ -243,7 +296,10 @@ export class DaoClass extends BaseDaoClass {
         );
     }
 
-    async getTunnelMetaByHost(network: string, host: string) {
+    async getTunnelMetaByHost(
+        network: string,
+        host: string
+    ): Promise<TunnelMeta | null> {
         const result = await this.query(
             "select * from tunnel_meta where network=? and host=?",
             [network, host]
@@ -255,80 +311,21 @@ export class DaoClass extends BaseDaoClass {
         return result[0];
     }
 
-    async refreshTunnelConfig(
+    async getTunnelConfigByHost(
         network: string,
-        newConfigMap: Map<string, TunnelConfig>
-    ) {
-        const conn = await this.getConnection();
-        try {
-            await conn.begin();
-            await conn.query("delete from tunnel_config where network=?", [
-                network,
-            ]);
-            await Promise.all(
-                Array.from(newConfigMap.keys()).map(async (host) => {
-                    const frpsConfig = newConfigMap.get(host)?.frps;
-                    if (frpsConfig != null) {
-                        const hash = getStringHash(frpsConfig);
-                        await conn.query(
-                            "insert into tunnel_config(network, host, name, config, config_hash) values (?, ?, ?, ?, ?)",
-                            [network, host, `frps-${host}`, frpsConfig, hash]
-                        );
-                    }
-
-                    const frpcConfigs = newConfigMap.get(host)?.frpc;
-                    if (frpcConfigs != null) {
-                        await Promise.all(
-                            frpcConfigs.map(async (configStr, configIndex) => {
-                                const hash = getStringHash(configStr);
-                                await conn.query(
-                                    "insert into tunnel_config(network, host, name, config, config_hash) values (?, ?, ?, ?, ?)",
-                                    [
-                                        network,
-                                        host,
-                                        `frpc-${host}-${configIndex + 1}`,
-                                        configStr,
-                                        hash,
-                                    ]
-                                );
-                            })
-                        );
-                    }
-
-                    const gostConfigs = newConfigMap.get(host)?.gost;
-                    if (gostConfigs != null) {
-                        await Promise.all(
-                            gostConfigs.map(async (configStr, configIndex) => {
-                                const hash = getStringHash(configStr);
-                                await conn.query(
-                                    "insert into tunnel_config(network, host, name, config, config_hash) values (?, ?, ?, ?, ?)",
-                                    [
-                                        network,
-                                        host,
-                                        `gost-${host}-${configIndex + 1}`,
-                                        configStr,
-                                        hash,
-                                    ]
-                                );
-                            })
-                        );
-                    }
-                })
-            );
-            await conn.commit();
-        } finally {
-            conn.close();
-        }
-    }
-
-    async getTunnelConfigByHost(network: string, host: string) {
+        host: string
+    ): Promise<TunnelFinalConfig[]> {
         return await this.query(
             "select * from tunnel_config where network=? and host=?",
             [network, host]
         );
     }
 
-    async getTunnelConfig(network: string, host: string, name: string) {
+    async getTunnelConfig(
+        network: string,
+        host: string,
+        name: string
+    ): Promise<TunnelFinalConfig | null> {
         const results = await this.query(
             "select * from tunnel_config where network=? and host=? and name=?",
             [network, host, name]
