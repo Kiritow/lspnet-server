@@ -16,7 +16,7 @@ export function GetRedisOptionSync() {
     );
 }
 
-export function GetServiceTokenKeysSync() {
+export function GetServiceTokenKeysSync(): string[] {
     return JSON.parse(
         fs.readFileSync("service_token.secret", {
             encoding: "utf-8",
