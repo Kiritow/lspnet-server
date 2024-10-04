@@ -227,7 +227,7 @@ router.post("/report", async (ctx) => {
     const body = z
         .object({
             name: z.string(),
-            ping: z.number().int().optional(),
+            ping: z.number().int().nullable().optional(),
             rx: z.number().int().optional(),
             tx: z.number().int().optional(),
         })
@@ -241,7 +241,7 @@ router.post("/report", async (ctx) => {
     const { name, ping, rx, tx } = body.data;
 
     const dataPack: { [key: string]: number } = {};
-    if (ping !== undefined) {
+    if (ping !== undefined && ping !== null) {
         dataPack.ping = ping;
     }
     if (rx !== undefined) {
