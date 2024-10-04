@@ -134,7 +134,9 @@ router.get("/login/github/callback", async (ctx) => {
         return;
     }
 
-    ctx.session.uid = accountInfo.uid;
+    if (ctx.session !== null) {
+        ctx.session.uid = accountInfo.uid;
+    }
 
     let serviceUrl = decodeURIComponent(service || "/admin");
     if (!serviceUrl.startsWith("/")) {

@@ -1,4 +1,4 @@
-import { CheckServiceToken } from "./token";
+import { CheckServiceToken, ServiceTokenDataBase } from "./token";
 import { DaoClass } from "./dao";
 import { GetMySQLOptionSync, GetInfluxDBOptionSync } from "./credentials";
 import getOrCreateLogger from "./base-log";
@@ -28,10 +28,9 @@ export const influxWriteAPI = new InfluxAPI(
     influxDBOptions.bucket
 );
 
-export function CheckServiceTokenWithType<TokenDataType>(
-    token: string,
-    allowedTypes: string[]
-) {
+export function CheckServiceTokenWithType<
+    TokenDataType extends ServiceTokenDataBase,
+>(token: string, allowedTypes: string[]) {
     const tokenInfo = CheckServiceToken<TokenDataType>(token);
     if (tokenInfo != null) {
         const tokenData = tokenInfo.data;
@@ -56,6 +55,7 @@ export function GetRequestToken(ctx: Context): string {
 }
 
 export interface ServiceInfoToken {
+    type: string;
     network: string;
     host: string;
 }

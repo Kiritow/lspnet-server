@@ -1,3 +1,9 @@
+.DS_Store
+.env
+.npmrc
+.npmrc.*
+dist/
+tmp/
 node_modules/
 *.secret
 test*

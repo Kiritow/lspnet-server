@@ -25,6 +25,10 @@ router.use(async (ctx, next) => {
 });
 
 async function getWebUser(ctx: Context) {
+    if (ctx.session == null) {
+        return null;
+    }
+
     if (ctx.session.isNew || ctx.session.uid == null || ctx.session.uid <= 0) {
         return null;
     }

@@ -3,13 +3,6 @@ import { dao, LoadServiceInfo } from "./common";
 import { Context } from "koa";
 import { z } from "zod";
 
-declare module "koa" {
-    interface Request {
-        body?: unknown;
-        rawBody: string;
-    }
-}
-
 export const router = new koaRouter({
     prefix: "/wg",
 });
