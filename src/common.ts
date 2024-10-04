@@ -28,18 +28,14 @@ export const influxWriteAPI = new InfluxAPI(
     influxDBOptions.bucket
 );
 
-export function CheckServiceTokenWithType(
+export function CheckServiceTokenWithType<TokenDataType>(
     token: string,
     allowedTypes: string[]
 ) {
-    const tokenInfo = CheckServiceToken(token);
+    const tokenInfo = CheckServiceToken<TokenDataType>(token);
     if (tokenInfo != null) {
         const tokenData = tokenInfo.data;
-        if (
-            allowedTypes == null ||
-            allowedTypes.length < 1 ||
-            allowedTypes.indexOf(tokenData.type) != -1
-        ) {
+        if (allowedTypes.indexOf(tokenData.type) != -1) {
             return tokenData;
         }
     }
@@ -59,12 +55,20 @@ export function GetRequestToken(ctx: Context): string {
     }
 }
 
-export function LoadServiceInfo(ctx: Context, allowedTypes: string[]) {
+export interface ServiceInfoToken {
+    network: string;
+    host: string;
+}
+
+export function LoadServiceInfo(ctx: Context, allowedTypes?: string[]) {
     const realAllowedTypes = allowedTypes || ["simple"];
 
     const token = GetRequestToken(ctx);
     if (token != null) {
-        const tokenData = CheckServiceTokenWithType(token, realAllowedTypes);
+        const tokenData = CheckServiceTokenWithType<ServiceInfoToken>(
+            token,
+            realAllowedTypes
+        );
         if (tokenData != null) {
             return tokenData;
         }

@@ -1,4 +1,8 @@
-import { CreateServiceToken, CheckServiceToken, ServiceTokenDataBase } from "./token";
+import {
+    CreateServiceToken,
+    CheckServiceToken,
+    ServiceTokenDataBase,
+} from "./token";
 
 export function CreateSimpleToken(network: string, host: string) {
     return CreateServiceToken(
@@ -52,10 +56,15 @@ export function CreateTunnelPullToken(network: string, host: string) {
     );
 }
 
+export interface TunnelPullTokenData extends ServiceTokenDataBase {
+    network: string;
+    host: string;
+}
+
 export function CheckTunnelPullToken(
     token: string
-): ServiceTokenDataBase | null {
-    const tokenInfo = CheckServiceToken(token);
+): TunnelPullTokenData | null {
+    const tokenInfo = CheckServiceToken<TunnelPullTokenData>(token);
     if (tokenInfo != null && tokenInfo.data.type == "tunnel") {
         return tokenInfo.data;
     }

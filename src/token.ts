@@ -4,18 +4,18 @@ import { GetServiceTokenKeysSync } from "./credentials";
 // Generate new key with crypto.randomBytes(32).toString('hex')
 const serviceKeys = GetServiceTokenKeysSync().map((k) => Buffer.from(k, "hex"));
 
-export interface ServiceTokenData {
+export interface ServiceTokenDataBase {
     type: string;
 }
 
-export interface ServiceToken {
-    data: ServiceTokenData;
+export interface ServiceToken<TokenDataType> {
+    data: ServiceTokenDataBase & TokenDataType;
     iat: number;
     exp: number;
 }
 
-export function CreateServiceToken(
-    data: ServiceTokenData,
+export function CreateServiceToken<TokenDataType extends ServiceTokenDataBase>(
+    data: TokenDataType,
     expireSeconds: number
 ) {
     if (data == null) throw Error("token data cannot be null");
@@ -41,7 +41,10 @@ export function CreateServiceToken(
     return `${resultBuffer.toString("base64")}.${keyIndex}.${iv.toString("base64")}.${authTag.toString("base64")}`;
 }
 
-export function CheckServiceToken(token: string, mustCreateAfterTs?: number) {
+export function CheckServiceToken<TokenDataType extends ServiceTokenDataBase>(
+    token: string,
+    mustCreateAfterTs?: number
+) {
     try {
         const parts = token.split(".");
         if (parts.length != 4) {
@@ -63,7 +66,9 @@ export function CheckServiceToken(token: string, mustCreateAfterTs?: number) {
             decipher.final(),
         ]);
 
-        const data: ServiceToken = JSON.parse(resultBuffer.toString("utf-8"));
+        const data: ServiceToken<TokenDataType> = JSON.parse(
+            resultBuffer.toString("utf-8")
+        );
         if (data.exp <= Math.floor(new Date().getTime() / 1000)) {
             console.log(`token expired: ${token}`);
             return null;

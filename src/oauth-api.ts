@@ -7,7 +7,7 @@ import { z } from "zod";
 const { id: GITHUB_CLIENT_ID, secret: GITHUB_CLIENT_SECRET } =
     GetGithubOAuthAppSync();
 
-const router = new koaRouter({
+export const router = new koaRouter({
     prefix: "/auth",
 });
 

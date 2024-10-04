@@ -151,7 +151,7 @@ export class DaoClass extends BaseDaoClass {
         host: string,
         name: string,
         mtu: number,
-        keepalive: string,
+        keepalive: number,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         cbGetAddress: (results: any[]) => string
     ) {
@@ -226,10 +226,10 @@ export class DaoClass extends BaseDaoClass {
 
     async createTunnel(
         network: string,
-        type: string,
-        protocol: string,
+        type: number,
+        protocol: number,
         host: string,
-        listen: string,
+        listen: number,
         targetHost: string,
         targetIP: string,
         targetPort: number,

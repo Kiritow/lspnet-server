@@ -106,7 +106,7 @@ function IsSubnetOverlapped(cidrArray: string[], subnetCIDR: string) {
     return false;
 }
 
-const router = new koaRouter({
+export const router = new koaRouter({
     prefix: "/link",
 });
 
@@ -262,5 +262,3 @@ router.post("/report", async (ctx) => {
 
     ctx.body = "OK";
 });
-
-module.exports = router;
