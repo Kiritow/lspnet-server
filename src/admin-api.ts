@@ -264,6 +264,7 @@ router.post("/tunnel/disable", async (ctx) => {
         })
         .safeParse(ctx.request.body);
     if (!body.success) {
+        console.log(body.error);
         ctx.status = 400;
         return;
     }
@@ -295,6 +296,7 @@ router.post("/tunnel/enable", async (ctx) => {
         })
         .safeParse(ctx.request.body);
     if (!body.success) {
+        console.log(body.error);
         ctx.status = 400;
         return;
     }
@@ -357,6 +359,7 @@ router.post("/host/create", async (ctx) => {
         .safeParse(ctx.request.body);
 
     if (!body.success) {
+        console.log(body.error);
         ctx.status = 400;
         return;
     }

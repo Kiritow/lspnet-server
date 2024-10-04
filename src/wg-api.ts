@@ -38,6 +38,7 @@ router.post("/create", async (ctx: Context) => {
         })
         .safeParse(ctx.request.body);
     if (!body.success) {
+        console.log(body.error);
         ctx.status = 400;
         return;
     }
@@ -86,6 +87,7 @@ router.post("/request", async (ctx) => {
         .safeParse(ctx.request.body);
 
     if (!body.success) {
+        console.log(body.error);
         ctx.status = 400;
         return;
     }
@@ -111,6 +113,7 @@ router.post("/batch_request", async (ctx) => {
         )
         .safeParse(ctx.request.body);
     if (!body.success) {
+        console.log(body.error);
         ctx.status = 400;
         return;
     }

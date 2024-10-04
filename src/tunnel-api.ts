@@ -102,6 +102,7 @@ router.post("/report", async (ctx) => {
         })
         .safeParse(ctx.request.body);
     if (!body.success) {
+        console.log(body.error);
         ctx.status = 400;
         return;
     }
