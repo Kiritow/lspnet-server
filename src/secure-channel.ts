@@ -13,6 +13,22 @@ export function getPublicKeyHash(publicKey: crypto.KeyObject): Buffer {
     return crypto.createHash("sha256").update(rawKey).digest();
 }
 
+export function getPublicKeyRaw(publicKey: crypto.KeyObject): Buffer {
+    assert(
+        publicKey.type === "public" &&
+            (publicKey.asymmetricKeyType == "x25519" ||
+                publicKey.asymmetricKeyType == "ed25519"),
+        "unsupported key type"
+    );
+    const der = publicKey.export({ type: "spki", format: "der" });
+    return der.subarray(der.length - 32);
+}
+
+export interface ExportedPublicEccKey {
+    key: Buffer;
+    sign: Buffer;
+}
+
 export class SecureMessage {
     senderKeyId: string;
     recvKeyId: string;
@@ -111,6 +127,39 @@ export class SecureChannel {
             crypto.createPublicKey(this.privateSignKey)
         );
         this.peerSignKeyHash = getPublicKeyHash(this.peerPublicSignKey);
+    }
+
+    addLocalEccKey(key: crypto.KeyObject): void {
+        assert(
+            key.type === "private" && key.asymmetricKeyType === "x25519",
+            "invalid key type"
+        );
+        const keyHash = getPublicKeyHash(key).toString("hex");
+        this.localEccKeys.set(keyHash, key);
+    }
+
+    addRemoteEccKey(key: crypto.KeyObject, signature: Buffer): void {
+        assert(
+            key.type === "public" && key.asymmetricKeyType === "x25519",
+            "invalid key type"
+        );
+        const keyHash = getPublicKeyHash(key).toString("hex");
+        const rawKey = getPublicKeyRaw(key);
+        if (!this.verify(rawKey, signature)) {
+            throw new Error("signature verification failed");
+        }
+
+        this.remoteEccKeys.set(keyHash, key);
+    }
+
+    exportLocalEccKeys(): Map<string, ExportedPublicEccKey> {
+        const exportedKeys = new Map<string, ExportedPublicEccKey>();
+        for (const [keyId, key] of this.localEccKeys) {
+            const keyRaw = getPublicKeyRaw(crypto.createPublicKey(key));
+            const signature = this.sign(keyRaw);
+            exportedKeys.set(keyId, { key: keyRaw, sign: signature });
+        }
+        return exportedKeys;
     }
 
     _deriveAESKeySync(
@@ -251,7 +300,7 @@ export class SecureChannel {
         return crypto.sign(null, buffer, this.privateSignKey);
     }
 
-    validate(buffer: Buffer, signature: Buffer): boolean {
+    verify(buffer: Buffer, signature: Buffer): boolean {
         return crypto.verify(null, buffer, this.peerPublicSignKey, signature);
     }
 }
