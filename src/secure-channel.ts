@@ -20,6 +20,7 @@ export class SecureMessage {
     cipherText: Buffer;
     nonce: Buffer;
     tag: Buffer;
+    timestamp: number;
     signature: Buffer;
 
     constructor(
@@ -29,6 +30,7 @@ export class SecureMessage {
         cipherText: Buffer,
         nonce: Buffer,
         tag: Buffer,
+        timestamp: number,
         signature: Buffer
     ) {
         this.senderKeyId = senderKeyId;
@@ -37,10 +39,14 @@ export class SecureMessage {
         this.cipherText = cipherText;
         this.nonce = nonce;
         this.tag = tag;
+        this.timestamp = timestamp;
         this.signature = signature;
     }
 
     toBuffer(): Buffer {
+        const tbuf = Buffer.allocUnsafe(4);
+        tbuf.writeUInt32BE(this.timestamp);
+
         return Buffer.concat([
             this.signature,
             Buffer.from(this.senderKeyId, "hex"),
@@ -48,6 +54,7 @@ export class SecureMessage {
             this.salt,
             this.nonce,
             this.tag,
+            tbuf,
             this.cipherText,
         ]);
     }
@@ -60,7 +67,8 @@ export function parseSecureMessage(buffer: Buffer): SecureMessage {
     const salt = buffer.subarray(128, 160);
     const nonce = buffer.subarray(160, 172);
     const tag = buffer.subarray(172, 188);
-    const cipherText = buffer.subarray(188);
+    const timestamp = buffer.readUInt32BE(188);
+    const cipherText = buffer.subarray(192);
 
     return new SecureMessage(
         senderKeyId,
@@ -69,6 +77,7 @@ export function parseSecureMessage(buffer: Buffer): SecureMessage {
         cipherText,
         nonce,
         tag,
+        timestamp,
         signature
     );
 }
@@ -150,6 +159,10 @@ export class SecureChannel {
         ]);
         const tag = cipher.getAuthTag();
 
+        const timestamp = Math.floor(Date.now() / 1000);
+        const tbuf = Buffer.allocUnsafe(4);
+        tbuf.writeUInt32BE(timestamp);
+
         const signBuffer = Buffer.concat([
             Buffer.from(localEccKeyId, "hex"),
             Buffer.from(remoteEccKeyId, "hex"),
@@ -157,6 +170,7 @@ export class SecureChannel {
             encrypted,
             iv,
             tag,
+            tbuf,
         ]);
 
         const signature = crypto.sign(null, signBuffer, this.privateSignKey);
@@ -168,6 +182,7 @@ export class SecureChannel {
             encrypted,
             iv,
             tag,
+            timestamp,
             signature
         );
     }
@@ -183,6 +198,9 @@ export class SecureChannel {
     }
 
     decryptSync(message: SecureMessage): Buffer {
+        const tbuf = Buffer.allocUnsafe(4);
+        tbuf.writeUInt32BE(message.timestamp);
+
         // verify sign
         const signBuffer = Buffer.concat([
             Buffer.from(message.senderKeyId, "hex"),
@@ -191,7 +209,10 @@ export class SecureChannel {
             message.cipherText,
             message.nonce,
             message.tag,
+            tbuf,
         ]);
+
+        console.log(signBuffer.toString("hex"));
 
         const verified = crypto.verify(
             null,
