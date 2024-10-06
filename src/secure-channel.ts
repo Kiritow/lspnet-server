@@ -2,15 +2,10 @@ import assert from "assert";
 import crypto from "crypto";
 
 export function getPublicKeyHash(publicKey: crypto.KeyObject): Buffer {
-    assert(
-        publicKey.type === "public" &&
-            (publicKey.asymmetricKeyType == "x25519" ||
-                publicKey.asymmetricKeyType == "ed25519"),
-        "unsupported key type"
-    );
-    const der = publicKey.export({ type: "spki", format: "der" });
-    const rawKey = der.subarray(der.length - 32);
-    return crypto.createHash("sha256").update(rawKey).digest();
+    return crypto
+        .createHash("sha256")
+        .update(getPublicKeyRaw(publicKey))
+        .digest();
 }
 
 export function getPublicKeyRaw(publicKey: crypto.KeyObject): Buffer {
@@ -24,182 +19,119 @@ export function getPublicKeyRaw(publicKey: crypto.KeyObject): Buffer {
     return der.subarray(der.length - 32);
 }
 
-export interface ExportedPublicEccKey {
-    key: Buffer;
-    sign: Buffer;
+function int64Tobuffer(num: number): Buffer {
+    const buf = Buffer.allocUnsafe(8);
+    buf.writeBigUint64BE(BigInt(num));
+    return buf;
 }
 
 export class SecureMessage {
-    senderKeyId: string;
-    recvKeyId: string;
-    salt: Buffer;
+    connId: number; // 64-bit (8 bytes)
+    timestamp: number; // 64-bit (8 bytes), milliseconds
+    salt: Buffer; // 32 bytes
     cipherText: Buffer;
-    nonce: Buffer;
-    tag: Buffer;
-    timestamp: number;
-    signature: Buffer;
+    nonce: Buffer; // 12 bytes
+    tag: Buffer; // 16 bytes
+    signature: Buffer; // 64 bytes
 
     constructor(
-        senderKeyId: string,
-        recvKeyId: string,
+        connId: number,
+        timestamp: number,
         salt: Buffer,
         cipherText: Buffer,
         nonce: Buffer,
         tag: Buffer,
-        timestamp: number,
         signature: Buffer
     ) {
-        this.senderKeyId = senderKeyId;
-        this.recvKeyId = recvKeyId;
+        this.connId = connId;
+        this.timestamp = timestamp;
         this.salt = salt;
         this.cipherText = cipherText;
         this.nonce = nonce;
         this.tag = tag;
-        this.timestamp = timestamp;
         this.signature = signature;
     }
 
-    toBuffer(): Buffer {
-        const tbuf = Buffer.allocUnsafe(4);
-        tbuf.writeUInt32BE(this.timestamp);
-
+    _signBuffer(): Buffer {
         return Buffer.concat([
-            this.signature,
-            Buffer.from(this.senderKeyId, "hex"),
-            Buffer.from(this.recvKeyId, "hex"),
+            int64Tobuffer(this.connId),
+            int64Tobuffer(this.timestamp),
             this.salt,
             this.nonce,
             this.tag,
-            tbuf,
             this.cipherText,
         ]);
     }
+
+    toBuffer(): Buffer {
+        return Buffer.concat([
+            this.signature,
+            int64Tobuffer(this.connId),
+            int64Tobuffer(this.timestamp),
+            this.salt,
+            this.nonce,
+            this.tag,
+            this.cipherText,
+        ]);
+    }
+
+    static fromBuffer(buffer: Buffer): SecureMessage {
+        const signature = buffer.subarray(0, 64);
+        const connId = buffer.readBigUInt64BE(64);
+        const timestamp = buffer.readBigUInt64BE(72);
+        const salt = buffer.subarray(80, 112);
+        const nonce = buffer.subarray(112, 124);
+        const tag = buffer.subarray(124, 140);
+        const cipherText = buffer.subarray(140);
+
+        return new SecureMessage(
+            Number(connId),
+            Number(timestamp),
+            salt,
+            cipherText,
+            nonce,
+            tag,
+            signature
+        );
+    }
 }
 
-export function parseSecureMessage(buffer: Buffer): SecureMessage {
-    const signature = buffer.subarray(0, 64);
-    const senderKeyId = buffer.subarray(64, 96).toString("hex");
-    const recvKeyId = buffer.subarray(96, 128).toString("hex");
-    const salt = buffer.subarray(128, 160);
-    const nonce = buffer.subarray(160, 172);
-    const tag = buffer.subarray(172, 188);
-    const timestamp = buffer.readUInt32BE(188);
-    const cipherText = buffer.subarray(192);
-
-    return new SecureMessage(
-        senderKeyId,
-        recvKeyId,
-        salt,
-        cipherText,
-        nonce,
-        tag,
-        timestamp,
-        signature
-    );
-}
-
-export class SecureChannel {
+export class SecureSession {
+    connId: number;
     privateSignKey: crypto.KeyObject;
-    peerPublicSignKey: crypto.KeyObject;
     signKeyHash: Buffer;
+    peerPublicSignKey: crypto.KeyObject;
     peerSignKeyHash: Buffer;
-    localEccKeys: Map<string, crypto.KeyObject> = new Map(); // private ecc keys
-    remoteEccKeys: Map<string, crypto.KeyObject> = new Map(); // public ecc keys
+    sharedSecret: Buffer;
 
     constructor(
+        connId: number,
         privateSignKey: crypto.KeyObject,
-        peerPublicSignKey: crypto.KeyObject
+        signKeyHash: Buffer,
+        peerPublicSignKey: crypto.KeyObject,
+        peerSignKeyHash: Buffer,
+        sharedSecret: Buffer
     ) {
+        this.connId = connId;
         this.privateSignKey = privateSignKey;
+        this.signKeyHash = signKeyHash;
         this.peerPublicSignKey = peerPublicSignKey;
-        assert(
-            this.privateSignKey.type === "private" &&
-                this.privateSignKey.asymmetricKeyType === "ed25519",
-            "invalid private sign key"
-        );
-        assert(
-            this.peerPublicSignKey.type === "public" &&
-                this.peerPublicSignKey.asymmetricKeyType === "ed25519",
-            "public key required"
-        );
-
-        this.signKeyHash = getPublicKeyHash(
-            crypto.createPublicKey(this.privateSignKey)
-        );
-        this.peerSignKeyHash = getPublicKeyHash(this.peerPublicSignKey);
+        this.peerSignKeyHash = peerSignKeyHash;
+        this.sharedSecret = sharedSecret;
     }
 
-    addLocalEccKey(key: crypto.KeyObject): void {
-        assert(
-            key.type === "private" && key.asymmetricKeyType === "x25519",
-            "invalid key type"
-        );
-        const keyHash = getPublicKeyHash(key).toString("hex");
-        this.localEccKeys.set(keyHash, key);
-    }
-
-    addRemoteEccKey(key: crypto.KeyObject, signature: Buffer): void {
-        assert(
-            key.type === "public" && key.asymmetricKeyType === "x25519",
-            "invalid key type"
-        );
-        const keyHash = getPublicKeyHash(key).toString("hex");
-        const rawKey = getPublicKeyRaw(key);
-        if (!this.verify(rawKey, signature)) {
-            throw new Error("signature verification failed");
-        }
-
-        this.remoteEccKeys.set(keyHash, key);
-    }
-
-    exportLocalEccKeys(): Map<string, ExportedPublicEccKey> {
-        const exportedKeys = new Map<string, ExportedPublicEccKey>();
-        for (const [keyId, key] of this.localEccKeys) {
-            const keyRaw = getPublicKeyRaw(crypto.createPublicKey(key));
-            const signature = this.sign(keyRaw);
-            exportedKeys.set(keyId, { key: keyRaw, sign: signature });
-        }
-        return exportedKeys;
-    }
-
-    _deriveAESKeySync(
-        localEccKeyId: string,
-        remoteEccKeyId: string,
-        salt: Buffer
-    ): ArrayBuffer {
-        const localEccKey = this.localEccKeys.get(localEccKeyId);
-        const remoteEccKey = this.remoteEccKeys.get(remoteEccKeyId);
-        assert(localEccKey, "local ecc key not found");
-        assert(remoteEccKey, "remote ecc key not found");
-
-        const sharedSecret = crypto.diffieHellman({
-            privateKey: localEccKey,
-            publicKey: remoteEccKey,
-        });
-
-        return crypto.hkdfSync(
+    encryptSync(plaintext: Buffer): SecureMessage {
+        const salt = crypto.randomBytes(32);
+        const aesKeyBytes = crypto.hkdfSync(
             "sha256",
-            sharedSecret,
+            this.sharedSecret,
             salt,
             Buffer.from("SecureChannelv1"),
             32
         );
-    }
 
-    _encryptSync(
-        localEccKeyId: string,
-        remoteEccKeyId: string,
-        plaintext: Buffer
-    ): SecureMessage {
-        const salt = crypto.randomBytes(32);
-        const aesKeyBytes = this._deriveAESKeySync(
-            localEccKeyId,
-            remoteEccKeyId,
-            salt
-        );
         const aesKey = crypto.createSecretKey(Buffer.from(aesKeyBytes));
         const iv = crypto.randomBytes(12);
-
         const cipher = crypto.createCipheriv("aes-256-gcm", aesKey, iv);
         cipher.setAAD(this.signKeyHash);
         const encrypted = Buffer.concat([
@@ -208,77 +140,41 @@ export class SecureChannel {
         ]);
         const tag = cipher.getAuthTag();
 
-        const timestamp = Math.floor(Date.now() / 1000);
-        const tbuf = Buffer.allocUnsafe(4);
-        tbuf.writeUInt32BE(timestamp);
-
-        const signBuffer = Buffer.concat([
-            Buffer.from(localEccKeyId, "hex"),
-            Buffer.from(remoteEccKeyId, "hex"),
+        const message = new SecureMessage(
+            this.connId,
+            Date.now(),
             salt,
             encrypted,
             iv,
             tag,
-            tbuf,
-        ]);
-
-        const signature = crypto.sign(null, signBuffer, this.privateSignKey);
-
-        return new SecureMessage(
-            localEccKeyId,
-            remoteEccKeyId,
-            salt,
-            encrypted,
-            iv,
-            tag,
-            timestamp,
-            signature
+            Buffer.alloc(0)
         );
-    }
-
-    encryptSync(plaintext: Buffer): SecureMessage {
-        const localEccKeyId = Array.from(this.localEccKeys.keys())[
-            Math.floor(Math.random() * this.localEccKeys.size)
-        ];
-        const remoteEccKeyId = Array.from(this.remoteEccKeys.keys())[
-            Math.floor(Math.random() * this.remoteEccKeys.size)
-        ];
-        return this._encryptSync(localEccKeyId, remoteEccKeyId, plaintext);
+        message.signature = crypto.sign(
+            null,
+            message._signBuffer(),
+            this.privateSignKey
+        );
+        return message;
     }
 
     decryptSync(message: SecureMessage): Buffer {
-        const tbuf = Buffer.allocUnsafe(4);
-        tbuf.writeUInt32BE(message.timestamp);
-
-        // verify sign
-        const signBuffer = Buffer.concat([
-            Buffer.from(message.senderKeyId, "hex"),
-            Buffer.from(message.recvKeyId, "hex"),
-            message.salt,
-            message.cipherText,
-            message.nonce,
-            message.tag,
-            tbuf,
-        ]);
-
-        console.log(signBuffer.toString("hex"));
-
         const verified = crypto.verify(
             null,
-            signBuffer,
+            message._signBuffer(),
             this.peerPublicSignKey,
             message.signature
         );
-
         if (!verified) {
             throw new Error("signature verification failed");
         }
+        assert(message.connId === this.connId, "invalid connection id");
 
-        // decrypt
-        const aesKeyBytes = this._deriveAESKeySync(
-            message.recvKeyId,
-            message.senderKeyId,
-            message.salt
+        const aesKeyBytes = crypto.hkdfSync(
+            "sha256",
+            this.sharedSecret,
+            message.salt,
+            Buffer.from("SecureChannelv1"),
+            32
         );
         const aesKey = crypto.createSecretKey(Buffer.from(aesKeyBytes));
         const cipher = crypto.createDecipheriv(
@@ -292,15 +188,108 @@ export class SecureChannel {
             cipher.update(message.cipherText),
             cipher.final(),
         ]);
-
         return plaintext;
     }
+}
 
-    sign(buffer: Buffer): Buffer {
-        return crypto.sign(null, buffer, this.privateSignKey);
+export interface CreateSessionResult {
+    session: SecureSession;
+    connId: number;
+    publicKey: Buffer;
+    sign: Buffer;
+}
+
+export class SecureChannelServer {
+    privateSignKey: crypto.KeyObject;
+    signKeyHash: Buffer;
+    clientPublicSignKeyLoader: (keyName: string) => Promise<crypto.KeyObject>;
+    connections: Map<number, SecureSession>;
+
+    constructor(
+        privateSignKey: crypto.KeyObject,
+        loader: (keyName: string) => Promise<crypto.KeyObject>
+    ) {
+        this.privateSignKey = privateSignKey;
+        assert(
+            this.privateSignKey.type === "private" &&
+                this.privateSignKey.asymmetricKeyType === "ed25519",
+            "invalid private sign key"
+        );
+        this.signKeyHash = getPublicKeyHash(
+            crypto.createPublicKey(this.privateSignKey)
+        );
+        this.connections = new Map();
+        this.clientPublicSignKeyLoader = loader;
     }
 
-    verify(buffer: Buffer, signature: Buffer): boolean {
-        return crypto.verify(null, buffer, this.peerPublicSignKey, signature);
+    _newConnectionId(): number {
+        for (;;) {
+            const cid = Math.floor(Math.random() * Number.MAX_SAFE_INTEGER);
+            if (cid !== 0 && !this.connections.has(cid)) {
+                return cid;
+            }
+        }
+    }
+
+    async createSession(
+        keyName: string,
+        clientPublicEccKeyRaw: Buffer,
+        clientPublicEccKeySign: Buffer,
+        eccKeyDeserializer: (raw: Buffer) => crypto.KeyObject
+    ): Promise<CreateSessionResult> {
+        const clientPublicSignKey =
+            await this.clientPublicSignKeyLoader(keyName);
+        assert(
+            clientPublicSignKey.type === "public" &&
+                clientPublicSignKey.asymmetricKeyType === "ed25519",
+            "invalid client sign key"
+        );
+
+        const verified = crypto.verify(
+            null,
+            clientPublicEccKeyRaw,
+            clientPublicSignKey,
+            clientPublicEccKeySign
+        );
+        if (!verified) {
+            throw new Error("signature verification failed");
+        }
+
+        const clientPublicEccKey = eccKeyDeserializer(clientPublicEccKeyRaw);
+        assert(
+            clientPublicEccKey.type === "public" &&
+                clientPublicEccKey.asymmetricKeyType === "x25519",
+            "invalid ecc key"
+        );
+
+        const { privateKey, publicKey } = crypto.generateKeyPairSync("x25519");
+        const sharedSecret = crypto.diffieHellman({
+            privateKey,
+            publicKey: clientPublicEccKey,
+        });
+        const cid = this._newConnectionId();
+        const session = new SecureSession(
+            cid,
+            this.privateSignKey,
+            this.signKeyHash,
+            clientPublicSignKey,
+            getPublicKeyHash(clientPublicSignKey),
+            sharedSecret
+        );
+        this.connections.set(cid, session);
+
+        const publicKeyRaw = getPublicKeyRaw(publicKey);
+        const signBuffer = Buffer.concat([publicKeyRaw, int64Tobuffer(cid)]);
+        const sign = crypto.sign(null, signBuffer, this.privateSignKey);
+        return {
+            publicKey: publicKeyRaw,
+            connId: cid,
+            sign,
+            session,
+        };
+    }
+
+    getSession(connId: number): SecureSession | undefined {
+        return this.connections.get(connId);
     }
 }
