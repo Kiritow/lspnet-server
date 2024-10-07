@@ -1,4 +1,4 @@
-import assert from "assert";
+import { assert } from "./common";
 import crypto from "crypto";
 
 export function getPublicKeyHash(publicKey: crypto.KeyObject): Buffer {
@@ -15,6 +15,7 @@ export function getPublicKeyRaw(publicKey: crypto.KeyObject): Buffer {
                 publicKey.asymmetricKeyType == "ed25519"),
         "unsupported key type"
     );
+
     const der = publicKey.export({ type: "spki", format: "der" });
     return der.subarray(der.length - 32);
 }
@@ -98,6 +99,7 @@ export class SecureMessage {
 
 export class SecureSession {
     connId: number;
+    validUntil: number;
     privateSignKey: crypto.KeyObject;
     signKeyHash: Buffer;
     peerPublicSignKey: crypto.KeyObject;
@@ -106,6 +108,7 @@ export class SecureSession {
 
     constructor(
         connId: number,
+        validUntil: number,
         privateSignKey: crypto.KeyObject,
         signKeyHash: Buffer,
         peerPublicSignKey: crypto.KeyObject,
@@ -113,6 +116,7 @@ export class SecureSession {
         sharedSecret: Buffer
     ) {
         this.connId = connId;
+        this.validUntil = validUntil;
         this.privateSignKey = privateSignKey;
         this.signKeyHash = signKeyHash;
         this.peerPublicSignKey = peerPublicSignKey;
@@ -197,17 +201,81 @@ export interface CreateSessionResult {
     connId: number;
     publicKey: Buffer;
     sign: Buffer;
+    data: Buffer;
+}
+
+export interface SecureSessionStore {
+    get(connId: number): Promise<SecureSession | undefined>;
+    has(connId: number): Promise<boolean>;
+    set(connId: number, session: SecureSession): Promise<void>;
+    push(session: SecureSession): Promise<number>;
+    delete(connId: number): Promise<void>;
+}
+
+class SecureSessionMemoryStore implements SecureSessionStore {
+    sessions: Map<number, SecureSession>;
+    timer: NodeJS.Timeout;
+
+    constructor(cleanupIntervalMs: number = 300000) {
+        this.sessions = new Map();
+
+        const refThis = new WeakRef(this);
+        this.timer = setInterval(() => {
+            const obj = refThis.deref();
+            if (obj === undefined) {
+                clearInterval(this.timer);
+                return;
+            }
+
+            const now = Date.now();
+            for (const [connId, session] of obj.sessions) {
+                if (session.validUntil < now) {
+                    obj.sessions.delete(connId);
+                }
+            }
+        }, cleanupIntervalMs); // run every 5 minutes
+    }
+
+    async get(connId: number): Promise<SecureSession | undefined> {
+        return this.sessions.get(connId);
+    }
+
+    async has(connId: number): Promise<boolean> {
+        return this.sessions.has(connId);
+    }
+
+    async set(connId: number, session: SecureSession): Promise<void> {
+        this.sessions.set(connId, session);
+    }
+
+    async push(session: SecureSession): Promise<number> {
+        let cid: number = 0;
+        for (;;) {
+            cid = Math.floor(Math.random() * Number.MAX_SAFE_INTEGER);
+            if (cid !== 0 && !this.sessions.has(cid)) {
+                break;
+            }
+        }
+        this.sessions.set(cid, session);
+        session.connId = cid;
+        return cid;
+    }
+
+    async delete(connId: number): Promise<void> {
+        this.sessions.delete(connId);
+    }
 }
 
 export class SecureChannelServer {
     privateSignKey: crypto.KeyObject;
     signKeyHash: Buffer;
     clientPublicSignKeyLoader: (keyName: string) => Promise<crypto.KeyObject>;
-    connections: Map<number, SecureSession>;
+    connections: SecureSessionStore;
 
     constructor(
         privateSignKey: crypto.KeyObject,
-        loader: (keyName: string) => Promise<crypto.KeyObject>
+        loader: (keyName: string) => Promise<crypto.KeyObject>,
+        store?: SecureSessionStore
     ) {
         this.privateSignKey = privateSignKey;
         assert(
@@ -218,24 +286,16 @@ export class SecureChannelServer {
         this.signKeyHash = getPublicKeyHash(
             crypto.createPublicKey(this.privateSignKey)
         );
-        this.connections = new Map();
         this.clientPublicSignKeyLoader = loader;
-    }
-
-    _newConnectionId(): number {
-        for (;;) {
-            const cid = Math.floor(Math.random() * Number.MAX_SAFE_INTEGER);
-            if (cid !== 0 && !this.connections.has(cid)) {
-                return cid;
-            }
-        }
+        this.connections = store || new SecureSessionMemoryStore();
     }
 
     async createSession(
         keyName: string,
         clientPublicEccKeyRaw: Buffer,
         clientPublicEccKeySign: Buffer,
-        eccKeyDeserializer: (raw: Buffer) => crypto.KeyObject
+        eccKeyDeserializer: (raw: Buffer) => crypto.KeyObject,
+        sessionDurationMs: number = 1000 * 60 * 60 // 1 hour
     ): Promise<CreateSessionResult> {
         const clientPublicSignKey =
             await this.clientPublicSignKeyLoader(keyName);
@@ -267,16 +327,28 @@ export class SecureChannelServer {
             privateKey,
             publicKey: clientPublicEccKey,
         });
-        const cid = this._newConnectionId();
+
+        const validUntil = Date.now() + sessionDurationMs;
         const session = new SecureSession(
-            cid,
+            0,
+            validUntil,
             this.privateSignKey,
             this.signKeyHash,
             clientPublicSignKey,
             getPublicKeyHash(clientPublicSignKey),
             sharedSecret
         );
-        this.connections.set(cid, session);
+        const cid = await this.connections.push(session);
+        console.log(session);
+
+        const payload = session.encryptSync(
+            Buffer.from(
+                JSON.stringify({
+                    iat: Date.now(),
+                    exp: validUntil,
+                })
+            )
+        );
 
         const publicKeyRaw = getPublicKeyRaw(publicKey);
         const signBuffer = Buffer.concat([publicKeyRaw, int64Tobuffer(cid)]);
@@ -285,11 +357,12 @@ export class SecureChannelServer {
             publicKey: publicKeyRaw,
             connId: cid,
             sign,
+            data: payload.toBuffer(),
             session,
         };
     }
 
-    getSession(connId: number): SecureSession | undefined {
+    getSession(connId: number): Promise<SecureSession | undefined> {
         return this.connections.get(connId);
     }
 }
