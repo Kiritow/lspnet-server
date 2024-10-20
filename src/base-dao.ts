@@ -1,21 +1,63 @@
-import { Logger } from "./base-log";
-import * as mysql from "mysql";
+import * as mysql from "mysql2";
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type QueryResultType = any;
+class QueryMethods<TBase extends QueryMethods<TBase>> {
+    queryEx<T extends mysql.QueryResult = mysql.RowDataPacket[]>(
+        sql: string,
+        params: unknown
+    ): Promise<{ results: T; fields?: mysql.FieldPacket[] }> {
+        sql;
+        params;
+        throw new Error("Method not implemented.");
+    }
 
-export class BaseConnection {
+    async query<T extends mysql.QueryResult = mysql.RowDataPacket[]>(
+        sql: string,
+        params: unknown
+    ) {
+        return (await this.queryEx<T>(sql, params)).results;
+    }
+
+    async run<T extends mysql.QueryResult = mysql.ResultSetHeader>(
+        sql: string,
+        params: unknown
+    ) {
+        return (await this.queryEx<T>(sql, params)).results;
+    }
+
+    async insert(
+        table: string,
+        data: Record<string, unknown>
+    ): Promise<mysql.ResultSetHeader> {
+        const keys = Object.keys(data);
+        const sqlValuesPart = new Array(keys.length).fill("?").join(",");
+
+        const sql = `insert into ${table}(${keys.join(",")}) values(${sqlValuesPart})`;
+        const params = keys.map((key) => data[key]);
+
+        return this.run(sql, params);
+    }
+}
+
+export interface ILogger {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    debug: (...args: any[]) => void;
+}
+
+export class BaseConnection extends QueryMethods<BaseConnection> {
     conn: mysql.PoolConnection;
-    logger?: Logger;
+    logger?: ILogger;
 
-    constructor(mysqlConn: mysql.PoolConnection, logger?: Logger) {
+    constructor(mysqlConn: mysql.PoolConnection, logger?: ILogger) {
+        super();
         this.conn = mysqlConn;
         this.logger = logger;
     }
 
     begin(): Promise<void> {
         return new Promise((resolve, reject) => {
-            if (this.logger) this.logger.debug("begin");
+            if (this.logger) {
+                this.logger.debug("begin transaction");
+            }
             this.conn.beginTransaction((err) => {
                 if (err) {
                     return reject(err);
@@ -28,7 +70,9 @@ export class BaseConnection {
 
     rollback(): Promise<void> {
         return new Promise((resolve, reject) => {
-            if (this.logger) this.logger.debug("rollback");
+            if (this.logger) {
+                this.logger.debug("rollback transaction");
+            }
             this.conn.rollback((e) => {
                 if (e) {
                     return reject(e);
@@ -41,7 +85,9 @@ export class BaseConnection {
 
     commit(): Promise<void> {
         return new Promise((resolve, reject) => {
-            if (this.logger) this.logger.debug("commit");
+            if (this.logger) {
+                this.logger.debug("commit transaction");
+            }
             this.conn.commit((e) => {
                 if (e) {
                     return reject(e);
@@ -52,14 +98,15 @@ export class BaseConnection {
         });
     }
 
-    async queryEx(
+    async queryEx<T extends mysql.QueryResult = mysql.RowDataPacket[]>(
         sql: string,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        params: any
-    ): Promise<{ results: QueryResultType; fields?: mysql.FieldInfo[] }> {
-        if (this.logger) this.logger.debug(sql, params);
+        params: unknown
+    ): Promise<{ results: T; fields?: mysql.FieldPacket[] }> {
         return new Promise((resolve, reject) => {
-            this.conn.query(sql, params, (err, results, fields) => {
+            if (this.logger) {
+                this.logger.debug(sql, params);
+            }
+            this.conn.query<T>(sql, params, (err, results, fields) => {
                 if (err) {
                     return reject(err);
                 }
@@ -67,11 +114,6 @@ export class BaseConnection {
                 return resolve({ results, fields });
             });
         });
-    }
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    async query(sql: string, params: any) {
-        return (await this.queryEx(sql, params)).results;
     }
 
     release() {
@@ -83,24 +125,29 @@ export class BaseConnection {
     }
 }
 
-export class BaseDaoClass {
+export class BaseDaoClass extends QueryMethods<BaseConnection> {
     pool: mysql.Pool;
-    logger?: Logger;
+    logger?: ILogger;
 
-    constructor(mysqlOptions: mysql.PoolConfig, logger?: Logger) {
+    constructor(mysqlOptions: mysql.PoolOptions, logger?: ILogger) {
+        super();
         this.pool = mysql.createPool(mysqlOptions);
         this.logger = logger;
     }
 
     // Utils
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    async queryEx(
+    async queryEx<T extends mysql.QueryResult = mysql.RowDataPacket[]>(
         sql: string,
         params: unknown
-    ): Promise<{ results: QueryResultType; fields?: mysql.FieldInfo[] }> {
-        if (this.logger) this.logger.debug(sql, params);
+    ): Promise<{
+        results: T;
+        fields?: mysql.FieldPacket[];
+    }> {
         return new Promise((resolve, reject) => {
-            this.pool.query(sql, params, (err, results, fields) => {
+            if (this.logger) {
+                this.logger.debug(sql, params);
+            }
+            this.pool.query<T>(sql, params, (err, results, fields) => {
                 if (err) {
                     return reject(err);
                 }
@@ -108,10 +155,6 @@ export class BaseDaoClass {
                 return resolve({ results, fields });
             });
         });
-    }
-
-    async query(sql: string, params: unknown) {
-        return (await this.queryEx(sql, params)).results;
     }
 
     // call release or destroy on Connection object later.
@@ -122,7 +165,7 @@ export class BaseDaoClass {
                     return reject(err);
                 }
 
-                return resolve(new BaseConnection(conn, this.logger));
+                return resolve(new BaseConnection(conn));
             });
         });
     }
