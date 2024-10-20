@@ -28,7 +28,8 @@
     "koa-router": "^12.0.0",
     "koa-session": "^6.4.0",
     "moment": "^2.29.4",
-    "mysql": "^2.18.1",
+    "mysql2": "^3.11.3",
+    "raw-body": "^3.0.0",
     "winston": "^3.8.2",
     "zod": "^3.23.8"
   },
@@ -40,7 +41,6 @@
     "@types/koa-json": "^2.0.23",
     "@types/koa-router": "^7.4.8",
     "@types/koa-session": "^6.4.5",
-    "@types/mysql": "^2.15.26",
     "@types/node": "^22.5.5",
     "@typescript-eslint/eslint-plugin": "^8.5.0",
     "eslint": "^8.57.0",
