@@ -119,7 +119,7 @@ export class Logger {
 export default function getOrCreateLogger(
     name: string,
     options?: LoggerOptions
-) {
+): Logger {
     if (loggerMaps.has(name)) return loggerMaps.get(name);
 
     const l = new Logger(
