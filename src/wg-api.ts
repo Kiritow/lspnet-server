@@ -3,9 +3,11 @@ import { dao, LoadServiceInfo } from "./common";
 import { Context } from "koa";
 import { z } from "zod";
 
-export const router = new koaRouter({
+const router = new koaRouter({
     prefix: "/wg",
 });
+
+export default router;
 
 router.get("/list", async (ctx: Context) => {
     const serviceInfo = LoadServiceInfo(ctx);

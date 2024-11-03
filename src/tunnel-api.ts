@@ -4,9 +4,11 @@ import { CheckTunnelPullToken } from "./simple-token";
 import { BuildConfigForNetwork } from "./tunnel";
 import { z } from "zod";
 
-export const router = new koaRouter({
+const router = new koaRouter({
     prefix: "/tunnel",
 });
+
+export default router;
 
 interface finalConfigSummary {
     name: string;

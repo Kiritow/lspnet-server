@@ -7,9 +7,11 @@ import { BuildConfigForNetworkAsync } from "./tunnel";
 import { Context } from "koa";
 import { z } from "zod";
 
-export const router = new koaRouter({
+const router = new koaRouter({
     prefix: "/admin",
 });
+
+export default router;
 
 router.use(async (ctx, next) => {
     try {

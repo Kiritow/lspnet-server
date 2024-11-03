@@ -6,11 +6,12 @@ import koaSession from "koa-session";
 import z from "zod";
 
 import { NewAsyncRootMW } from "./middleware";
-import { router as wgRouter } from "./wg-api";
-import { router as linkRouter } from "./link-api";
-import { router as tunnelRouter } from "./tunnel-api";
-import { router as authRouter } from "./oauth-api";
-import { router as adminRouter } from "./admin-api";
+import wgRouter from "./wg-api";
+import linkRouter from "./link-api";
+import tunnelRouter from "./tunnel-api";
+import authRouter from "./oauth-api";
+import adminRouter from "./admin-api";
+import nodeRouter from "./node-api";
 import { LoadServiceInfo, logger } from "./common";
 import { GetKoaAppSecretSync } from "./credentials";
 import {
@@ -98,6 +99,7 @@ app.use(linkRouter.routes()).use(linkRouter.allowedMethods());
 app.use(tunnelRouter.routes()).use(tunnelRouter.allowedMethods());
 app.use(authRouter.routes()).use(authRouter.allowedMethods());
 app.use(adminRouter.routes()).use(adminRouter.allowedMethods());
+app.use(nodeRouter.routes()).use(nodeRouter.allowedMethods());
 app.use(router.routes()).use(router.allowedMethods());
 
 app.listen(6666);
