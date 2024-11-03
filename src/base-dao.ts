@@ -5,8 +5,6 @@ class QueryMethods<TBase extends QueryMethods<TBase>> {
         sql: string,
         params: unknown
     ): Promise<{ results: T; fields?: mysql.FieldPacket[] }> {
-        sql;
-        params;
         throw new Error("Method not implemented.");
     }
 
@@ -26,12 +24,41 @@ class QueryMethods<TBase extends QueryMethods<TBase>> {
 
     async insert(
         table: string,
-        data: Record<string, unknown>
+        data: Record<string, unknown>,
+        ignore?: boolean
     ): Promise<mysql.ResultSetHeader> {
         const keys = Object.keys(data);
         const sqlValuesPart = new Array(keys.length).fill("?").join(",");
 
-        const sql = `insert into ${table}(${keys.join(",")}) values(${sqlValuesPart})`;
+        if (ignore) {
+            const sql = `INSERT IGNORE INTO ${table}(${keys.join(",")}) VALUES(${sqlValuesPart})`;
+            const params = keys.map((key) => data[key]);
+
+            return this.run(sql, params);
+        }
+
+        const sql = `INSERT INTO ${table}(${keys.join(",")}) VALUES(${sqlValuesPart})`;
+        const params = keys.map((key) => data[key]);
+
+        return this.run(sql, params);
+    }
+
+    async upsert(
+        table: string,
+        data: Record<string, unknown>,
+        upsertKeys: string[],
+        updateTimeFieldName?: string // force update `updateTimeField` to now()
+    ): Promise<mysql.ResultSetHeader> {
+        const keys = Object.keys(data);
+        const sqlValuesPart = new Array(keys.length).fill("?").join(",");
+        let sqlUpdatePart = upsertKeys
+            .map((key) => `${key}=VALUES(${key})`)
+            .join(",");
+        if (updateTimeFieldName !== undefined) {
+            sqlUpdatePart += `,${updateTimeFieldName}=NOW()`;
+        }
+
+        const sql = `insert into ${table}(${keys.join(",")}) values(${sqlValuesPart}) on duplicate key update ${sqlUpdatePart}`;
         const params = keys.map((key) => data[key]);
 
         return this.run(sql, params);
