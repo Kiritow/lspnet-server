@@ -1,67 +1,82 @@
 import { BaseDaoClass } from "./base-dao";
 import getOrCreateLogger from "./base-log";
+import z from "zod";
 
 const logger = getOrCreateLogger("app");
 
-export interface UserInfo {
-    uid: number;
-    platform: string;
-    platform_uid: string;
-    uname: string;
-}
+const _userInfoSchema = z.object({
+    uid: z.number(),
+    platform: z.string(),
+    platform_uid: z.string(),
+    uname: z.string(),
+});
 
-export interface KeyInfo {
-    network: string;
-    host: string;
-    name: string;
-    pubkey: string;
-}
+export type UserInfo = z.infer<typeof _userInfoSchema>;
 
-export interface NetworkConfig {
-    network: string;
-    subnet: string;
-}
+const _keyInfoSchema = z.object({
+    network: z.string(),
+    host: z.string(),
+    name: z.string(),
+    pubkey: z.string(),
+});
 
-export interface WireGuardLinkConfig {
-    network: string;
-    host: string;
-    name: string;
-    address: string;
-    mtu: number;
-    keepalive: number;
-}
+export type KeyInfo = z.infer<typeof _keyInfoSchema>;
 
-export interface TunnelInfo {
-    id: number;
-    network: string;
-    type: number;
-    protocol: number;
-    host: string;
-    listen: number;
-    target_host: string;
-    target_ip: string;
-    target_port: number;
-    description: string;
-    status: number;
-}
+const _networkConfigSchema = z.object({
+    network: z.string(),
+    subnet: z.string(),
+});
 
-export interface TunnelFinalConfig {
-    network: string;
-    host: string;
-    name: string;
-    config: string;
-    config_hash: string;
-}
+export type NetworkConfig = z.infer<typeof _networkConfigSchema>;
 
-export interface TunnelMeta {
-    network: string;
-    host: string;
-    ip: string;
-    frps_port: number;
-    frps_token: string;
-    frps_use_kcp: number;
-    last_seen: Date;
-}
+const _wireGuardLinkConfigSchema = z.object({
+    network: z.string(),
+    host: z.string(),
+    name: z.string(),
+    address: z.string(),
+    mtu: z.number(),
+    keepalive: z.number(),
+});
+
+export type WireGuardLinkConfig = z.infer<typeof _wireGuardLinkConfigSchema>;
+
+const _tunnelInfoSchema = z.object({
+    id: z.number(),
+    network: z.string(),
+    type: z.number(),
+    protocol: z.number(),
+    host: z.string(),
+    listen: z.number(),
+    target_host: z.string(),
+    target_ip: z.string(),
+    target_port: z.number(),
+    description: z.string(),
+    status: z.number(),
+});
+
+export type TunnelInfo = z.infer<typeof _tunnelInfoSchema>;
+
+const _tunnelFinalConfigSchema = z.object({
+    network: z.string(),
+    host: z.string(),
+    name: z.string(),
+    config: z.string(),
+    config_hash: z.string(),
+});
+
+export type TunnelFinalConfig = z.infer<typeof _tunnelFinalConfigSchema>;
+
+const _tunnelMetaSchema = z.object({
+    network: z.string(),
+    host: z.string(),
+    ip: z.string(),
+    frps_port: z.number(),
+    frps_token: z.string(),
+    frps_use_kcp: z.number(),
+    last_seen: z.date(),
+});
+
+export type TunnelMeta = z.infer<typeof _tunnelMetaSchema>;
 
 export class DaoClass extends BaseDaoClass {
     async getPlatformUser(platform: string, platformUid: string) {
@@ -82,7 +97,7 @@ export class DaoClass extends BaseDaoClass {
         if (result.length < 1) {
             return null;
         }
-        return result[0];
+        return _userInfoSchema.parse(result[0]);
     }
 
     async addOrUpdateKey(
@@ -110,14 +125,15 @@ export class DaoClass extends BaseDaoClass {
             return null;
         }
 
-        return results[0].pubkey;
+        return _keyInfoSchema.parse(results[0]).pubkey;
     }
 
     async getAllKeys(network: string, host: string): Promise<KeyInfo[]> {
-        return await this.query(
+        const result = await this.query(
             "select * from pubkey where network=? and host=?",
             [network, host]
         );
+        return result.map((row) => _keyInfoSchema.parse(row));
     }
 
     async addKey(network: string, host: string, name: string, pubkey: string) {
@@ -133,17 +149,19 @@ export class DaoClass extends BaseDaoClass {
             [network]
         );
         if (results.length < 1) return null;
-        return results[0];
+        return _networkConfigSchema.parse(results[0]);
     }
 
     async getAllLinks(
         network: string,
         host: string
     ): Promise<WireGuardLinkConfig[]> {
-        return await this.query(
+        const results = await this.query(
             "select * from wglink where network=? and host=?",
             [network, host]
         );
+
+        return results.map((row) => _wireGuardLinkConfigSchema.parse(row));
     }
 
     async createLink(
@@ -152,8 +170,7 @@ export class DaoClass extends BaseDaoClass {
         name: string,
         mtu: number,
         keepalive: number,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        cbGetAddress: (results: any[]) => string
+        cbGetAddress: (results: WireGuardLinkConfig[]) => string
     ) {
         const conn = await this.getConnection();
         try {
@@ -162,7 +179,10 @@ export class DaoClass extends BaseDaoClass {
                 "select * from wglink where network=? for update",
                 [network]
             );
-            const address = cbGetAddress(results);
+            const links = results.map((row) =>
+                _wireGuardLinkConfigSchema.parse(row)
+            );
+            const address = cbGetAddress(links);
             await conn.query(
                 "insert into wglink(network, host, name, address, mtu, keepalive) values (?, ?, ?, ?, ?, ?)",
                 [network, host, name, address, mtu, keepalive]
@@ -186,7 +206,7 @@ export class DaoClass extends BaseDaoClass {
             return null;
         }
 
-        return results[0];
+        return _wireGuardLinkConfigSchema.parse(results[0]);
     }
 
     async heartbeatHost(network: string, host: string, ip: string) {
@@ -213,15 +233,18 @@ export class DaoClass extends BaseDaoClass {
         enabledOnly: boolean
     ): Promise<TunnelInfo[]> {
         if (enabledOnly) {
-            return await this.query(
+            const results = await this.query(
                 "select * from tunnel where network=? and status=0",
                 [network]
             );
+            return results.map((row) => _tunnelInfoSchema.parse(row));
         }
 
-        return await this.query("select * from tunnel where network=?", [
-            network,
-        ]);
+        const results = await this.query(
+            "select * from tunnel where network=?",
+            [network]
+        );
+        return results.map((row) => _tunnelInfoSchema.parse(row));
     }
 
     async createTunnel(
@@ -268,7 +291,7 @@ export class DaoClass extends BaseDaoClass {
             return null;
         }
 
-        return result[0];
+        return _tunnelInfoSchema.parse(result[0]);
     }
 
     async heartbeatTunnelMeta(network: string, host: string) {
@@ -279,9 +302,12 @@ export class DaoClass extends BaseDaoClass {
     }
 
     async getAllTunnelMeta(network: string): Promise<TunnelMeta[]> {
-        return await this.query("select * from tunnel_meta where network=?", [
-            network,
-        ]);
+        const results = await this.query(
+            "select * from tunnel_meta where network=?",
+            [network]
+        );
+
+        return results.map((row) => _tunnelMetaSchema.parse(row));
     }
 
     async createTunnelMeta(
@@ -308,17 +334,18 @@ export class DaoClass extends BaseDaoClass {
             return null;
         }
 
-        return result[0];
+        return _tunnelMetaSchema.parse(result[0]);
     }
 
     async getTunnelConfigByHost(
         network: string,
         host: string
     ): Promise<TunnelFinalConfig[]> {
-        return await this.query(
+        const result = await this.query(
             "select * from tunnel_config where network=? and host=?",
             [network, host]
         );
+        return result.map((row) => _tunnelFinalConfigSchema.parse(row));
     }
 
     async getTunnelConfig(
@@ -334,6 +361,6 @@ export class DaoClass extends BaseDaoClass {
             return null;
         }
 
-        return results[0];
+        return _tunnelFinalConfigSchema.parse(results[0]);
     }
 }
