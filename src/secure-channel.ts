@@ -1,4 +1,4 @@
-import { assert } from "./common";
+import assert from "assert";
 import crypto from "crypto";
 
 export function getPublicKeyHash(publicKey: crypto.KeyObject): Buffer {
@@ -339,7 +339,6 @@ export class SecureChannelServer {
             sharedSecret
         );
         const cid = await this.connections.push(session);
-        console.log(session);
 
         const payload = session.encryptSync(
             Buffer.from(
