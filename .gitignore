@@ -4,6 +4,7 @@
 .npmrc.*
 dist/
 tmp/
+tests/
 node_modules/
 .vscode/
 *.secret
