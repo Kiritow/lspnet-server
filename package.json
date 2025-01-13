@@ -23,7 +23,7 @@
     "ip-address": "^8.1.0",
     "jsbn": "^1.1.0",
     "koa": "^2.14.1",
-    "koa-bodyparser": "^4.3.0",
+    "koa-bodyparser": "^4.4.1",
     "koa-json": "^2.0.2",
     "koa-router": "^12.0.0",
     "koa-session": "^6.4.0",
