@@ -1,24 +1,21 @@
+import z from "zod";
 import { randomBytes, createCipheriv, createDecipheriv } from "crypto";
 import { GetServiceTokenKeysSync } from "./credentials";
 
 // Generate new key with crypto.randomBytes(32).toString('hex')
 const serviceKeys = GetServiceTokenKeysSync().map((k) => Buffer.from(k, "hex"));
 
-export interface ServiceTokenDataBase {
-    type: string;
-}
+export const _serviceTokenBaseSchema = z.object({
+    iat: z.number(),
+    exp: z.number(),
+    data: z.unknown().refine((data) => data !== null && data !== undefined),
+});
 
-export interface ServiceToken<TokenDataType> {
-    data: ServiceTokenDataBase & TokenDataType;
-    iat: number;
-    exp: number;
-}
+export type ServiceTokenDataBase = z.infer<typeof _serviceTokenBaseSchema>;
 
-export function CreateServiceToken<TokenDataType extends ServiceTokenDataBase>(
-    data: TokenDataType,
-    expireSeconds: number
-) {
-    if (data == null) throw Error("token data cannot be null");
+export function CreateServiceToken(data: unknown, expireSeconds: number) {
+    if (data === null || data === undefined)
+        throw Error("token data cannot be null");
 
     const tokenInfo = {
         data,
@@ -41,10 +38,10 @@ export function CreateServiceToken<TokenDataType extends ServiceTokenDataBase>(
     return `${resultBuffer.toString("base64")}.${keyIndex}.${iv.toString("base64")}.${authTag.toString("base64")}`;
 }
 
-export function CheckServiceToken<TokenDataType extends ServiceTokenDataBase>(
+export function CheckServiceToken(
     token: string,
     mustCreateAfterTs?: number
-) {
+): ServiceTokenDataBase | null {
     try {
         const parts = token.split(".");
         if (parts.length != 4) {
@@ -66,17 +63,17 @@ export function CheckServiceToken<TokenDataType extends ServiceTokenDataBase>(
             decipher.final(),
         ]);
 
-        const data: ServiceToken<TokenDataType> = JSON.parse(
-            resultBuffer.toString("utf-8")
+        const tokenInfo = _serviceTokenBaseSchema.parse(
+            JSON.parse(resultBuffer.toString("utf-8"))
         );
-        if (data.exp <= Math.floor(new Date().getTime() / 1000)) {
+        if (tokenInfo.exp <= Math.floor(new Date().getTime() / 1000)) {
             console.log(`token expired: ${token}`);
             return null;
         }
 
         if (
             mustCreateAfterTs !== undefined &&
-            data.iat < Math.floor(mustCreateAfterTs / 1000)
+            tokenInfo.iat < Math.floor(mustCreateAfterTs / 1000)
         ) {
             console.log(
                 `token create time invalid, require: ${new Date(mustCreateAfterTs).toISOString()}, got: ${new Date(data.iat * 1000)}`
@@ -84,7 +81,7 @@ export function CheckServiceToken<TokenDataType extends ServiceTokenDataBase>(
             return null;
         }
 
-        return data;
+        return tokenInfo;
     } catch (e) {
         console.log(e);
         console.log(`invalid token: ${token}`);

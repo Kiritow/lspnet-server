@@ -1,72 +1,32 @@
-import {
-    CreateServiceToken,
-    CheckServiceToken,
-    ServiceTokenDataBase,
-} from "./token";
+import z from "zod";
+import { CreateServiceToken, CheckServiceToken } from "./token";
 
-export function CreateSimpleToken(network: string, host: string) {
+const _joinClusterTokenSchema = z.object({
+    type: z.literal("join"),
+    cluster: z.string(),
+});
+
+export function CreateJoinClusterToken(cluster: string) {
     return CreateServiceToken(
         {
-            type: "simple",
-            host,
-            network,
-        },
-        3600
-    );
-}
-
-export function CreateReportToken(network: string, host: string) {
-    return CreateServiceToken(
-        {
-            type: "report",
-            host,
-            network,
-        },
-        365 * 86400
-    );
-}
-
-// for CLI tools to authenticate
-export function CreateAuthToken() {
-    return CreateServiceToken(
-        {
-            type: "auth",
+            type: "join",
+            cluster,
         },
         180
     );
 }
 
-export function CheckAuthToken(token: string): ServiceTokenDataBase | null {
+export function CheckJoinClusterToken(token: string) {
     const tokenInfo = CheckServiceToken(token);
-    if (tokenInfo != null && tokenInfo.data.type == "auth") {
-        return tokenInfo.data;
-    }
-
-    return null;
-}
-
-export function CreateTunnelPullToken(network: string, host: string) {
-    return CreateServiceToken(
-        {
-            type: "tunnel",
-            network,
-            host,
-        },
-        180 * 86400
-    );
-}
-
-export interface TunnelPullTokenData extends ServiceTokenDataBase {
-    network: string;
-    host: string;
-}
-
-export function CheckTunnelPullToken(
-    token: string
-): TunnelPullTokenData | null {
-    const tokenInfo = CheckServiceToken<TunnelPullTokenData>(token);
-    if (tokenInfo != null && tokenInfo.data.type == "tunnel") {
-        return tokenInfo.data;
+    if (tokenInfo != null) {
+        const parseResult = _joinClusterTokenSchema.safeParse(tokenInfo.data);
+        if (!parseResult.success) {
+            return null;
+        }
+        const tokenData = parseResult.data;
+        if (tokenData.type == "join") {
+            return tokenData.cluster;
+        }
     }
 
     return null;

@@ -1,138 +1,138 @@
-import fs from "fs";
-import assert from "assert";
 import crypto from "crypto";
-import Application, { Context } from "koa";
+import { Context } from "koa";
 import koaRouter from "koa-router";
-import { z } from "zod";
-import { dao, LoadServiceInfo } from "./common";
-import { SecureMessage, SecureChannelServer } from "./secure-channel";
-import getRawBody from "raw-body";
+import z from "zod";
 
-// ---- TESTING PURPOSE ----
-// create new key
-function loadPrivateSignKey(filePath: string): crypto.KeyObject {
-    const content = fs.readFileSync(filePath);
-    const key = crypto.createPrivateKey(content);
-    assert(
-        key.type === "private" && key.asymmetricKeyType === "ed25519",
-        "invalid key type"
-    );
-    return key;
-}
-
-function loadPublicSignKey(filePath: string): crypto.KeyObject {
-    const content = fs.readFileSync(filePath);
-    const key = crypto.createPublicKey(content);
-    assert(
-        key.type === "public" && key.asymmetricKeyType === "ed25519",
-        "invalid key type"
-    );
-    return key;
-}
-
-async function keyLoader(keyName: string): Promise<crypto.KeyObject> {
-    return loadPublicSignKey("client-public-sign-key.pem");
-}
-// ---- END OF TESTING PURPOSE ----
-
-function eccPublicKeyFromDer(raw: Buffer): crypto.KeyObject {
-    return crypto.createPublicKey({
-        key: raw,
-        format: "der",
-        type: "spki",
-    });
-}
-
-const secureChannelServer = new SecureChannelServer(
-    loadPrivateSignKey("server-private-sign-key.pem"),
-    keyLoader
-);
+import { dao } from "./common";
+import { CheckJoinClusterToken } from "./simple-token";
+import { ClientKeyWrapper } from "./client-pki";
+import { _nodeConfigSchema } from "model";
 
 const router = new koaRouter({
-    prefix: "/node",
+    prefix: "/api/v1/node",
 });
-
 export default router;
 
-router.post("/connect", async (ctx: Context) => {
+async function verifyClientRequest(ctx: Context) {
+    const clientKeyID = ctx.get("X-Client-ID");
+    const nonce = ctx.get("X-Client-Nonce");
+    const signature = ctx.get("X-Client-Sign");
+    const clientInfo = await dao.getNodeInfoBySignKeyHash(clientKeyID);
+    if (clientInfo === null) {
+        return null;
+    }
+
+    const pubkey = crypto.createPublicKey(clientInfo.publicSignKey); // DER format
+
+    if (ctx.method === "GET") {
+        const signData = `${ctx.path}\n${nonce}\n${ctx.querystring}`;
+        if (
+            !crypto.verify(
+                null,
+                Buffer.from(signData),
+                pubkey,
+                Buffer.from(signature, "base64")
+            )
+        ) {
+            // signature verification failed
+            console.log(`Invalid signature: ${signature}`);
+            return null;
+        }
+    } else if (ctx.method === "POST") {
+        const signData = `${ctx.path}\n${nonce}\n${ctx.request.body}`;
+        if (
+            !crypto.verify(
+                null,
+                Buffer.from(signData),
+                pubkey,
+                Buffer.from(signature, "base64")
+            )
+        ) {
+            // signature verification failed
+            console.log(`Invalid signature: ${signature}`);
+            return null;
+        }
+    } else {
+        console.log(`Invalid method: ${ctx.method}`);
+        return null;
+    }
+
+    return clientInfo;
+}
+
+async function mustVerifyClient(ctx: Context) {
+    const clientInfo = await verifyClientRequest(ctx);
+    if (clientInfo === null) {
+        ctx.status = 401;
+        return null;
+    }
+
+    return clientInfo;
+}
+
+router.get("/config", async (ctx) => {
+    const clientInfo = await mustVerifyClient(ctx);
+    if (clientInfo === null) return;
+
+    const nodeConfig = _nodeConfigSchema.parse(clientInfo.config);
+    ctx.body = nodeConfig;
+});
+
+router.post("/status", async (ctx) => {
+    const clientInfo = await mustVerifyClient(ctx);
+    if (clientInfo === null) return;
+
+    // TODO: update status to db
+    ctx.body = "OK";
+});
+
+router.post("/join", async (ctx) => {
     const body = z
         .object({
+            token: z.string(),
+            publicSignKey: z.string(), // PEM format
             name: z.string(),
-            key: z.string(),
-            sign: z.string(),
         })
         .safeParse(ctx.request.body);
+
     if (!body.success) {
         ctx.status = 400;
         return;
     }
-    const { name, key, sign } = body.data;
+
+    const { token, publicSignKey, name } = body.data;
+
+    const cluster = CheckJoinClusterToken(token);
+    if (cluster === null) {
+        console.log(`Invalid join token: ${token}`);
+
+        ctx.status = 400;
+        return;
+    }
+
+    let clientPublicSignKey: ClientKeyWrapper;
     try {
-        const result = await secureChannelServer.createSession(
-            name,
-            Buffer.from(key, "base64"),
-            Buffer.from(sign, "base64"),
-            eccPublicKeyFromDer
-        );
-        ctx.body = {
-            cid: result.connId,
-            key: result.publicKey.toString("base64"),
-            sign: result.sign.toString("base64"),
-            data: result.data.toString("base64"),
-        };
+        clientPublicSignKey = new ClientKeyWrapper(publicSignKey);
     } catch (e) {
+        console.log(`Invalid public sign key: ${publicSignKey}`);
         console.log(e);
-        ctx.status = 401;
+        ctx.status = 400;
+        ctx.body = `Invalid public sign key`;
+        return;
     }
-});
 
-interface DecryptJSONResult<T> {
-    cid: number;
-    body: T;
-}
+    const newNodeId = `${crypto.randomUUID()}`;
+    await dao.createNodeInfo(
+        cluster,
+        newNodeId,
+        name,
+        clientPublicSignKey.toPEM(),
+        clientPublicSignKey.getKeyHash(),
+        ""
+    );
 
-async function bodyDecryptJSON<T>(body: Buffer): Promise<DecryptJSONResult<T>> {
-    const message = SecureMessage.fromBuffer(body);
-    const session = await secureChannelServer.getSession(message.connId);
-    if (session === undefined) {
-        throw new Error("invalid connection id");
-    }
-    const plaintext = session.decryptSync(message);
-    return {
-        cid: message.connId,
-        body: JSON.parse(plaintext.toString("utf8")),
-    };
-}
-
-async function respEncryptJSON(cid: number, body: unknown): Promise<Buffer> {
-    const message = Buffer.from(JSON.stringify(body), "utf8");
-    const session = await secureChannelServer.getSession(cid);
-    if (session === undefined) {
-        throw new Error("invalid connection id");
-    }
-    return session.encryptSync(message).toBuffer();
-}
-
-async function secureLayerMW(ctx: Context, next: Application.Next) {
-    const raw = await getRawBody(ctx.req);
-    const { body, cid } = await bodyDecryptJSON<unknown>(raw);
-    ctx.request.body = body;
-
-    try {
-        await next();
-
-        ctx.body = await respEncryptJSON(cid, ctx.body);
-    } catch (e) {
-        console.log(e);
-        ctx.body = undefined;
-        ctx.status = 500;
-        throw e;
-    }
-}
-
-router.post("/send", secureLayerMW, async (ctx: Context) => {
-    console.log(ctx.request.body);
     ctx.body = {
-        message: "hello world from server",
+        cluster,
+        id: newNodeId,
     };
 });
