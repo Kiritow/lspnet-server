@@ -1,5 +1,23 @@
 import assert from "assert";
 import { Address4 } from "ip-address";
+import z from "zod";
+
+export function readableZodError<T>(err: z.ZodError<T>): string {
+    return err.errors
+        .map((e) => {
+            const readablePath = e.path
+                .map((p) => {
+                    if (typeof p === "number") {
+                        return `[${p}]`;
+                    }
+                    return `.${p}`;
+                })
+                .join("")
+                .substring(1);
+            return `${readablePath}: ${e.message}`;
+        })
+        .join("; ");
+}
 
 export function GetAllAddressFromLinkNetworkCIDR(networkCIDR: string) {
     const addr = new Address4(networkCIDR);

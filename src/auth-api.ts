@@ -1,8 +1,9 @@
 import koaRouter from "koa-router";
 import axios from "axios";
-import { logger, dao } from "./common";
-import { GetGithubOAuthAppSync } from "./credentials";
 import { z } from "zod";
+
+import { logger, dao, getWebUser } from "./common";
+import { GetGithubOAuthAppSync } from "./credentials";
 
 const { id: GITHUB_CLIENT_ID, secret: GITHUB_CLIENT_SECRET } =
     GetGithubOAuthAppSync();
@@ -128,17 +129,22 @@ router.get("/login/github/callback", async (ctx) => {
     }
 
     const accountInfo = await dao.getPlatformUser("github", userProfile.userid);
+
+    let userId: number;
     if (accountInfo == null) {
-        logger.error(
-            `github user: ${userProfile.username} (${userProfile.userid}) not registered.`
+        // create new user
+        const newUserId = await dao.createUser(
+            "github",
+            userProfile.userid,
+            userProfile.username
         );
-        ctx.body = "Invalid user";
-        return;
+        logger.info(`NewUser: ${userProfile.username}(${userProfile.userid})`);
+        userId = newUserId;
+    } else {
+        userId = accountInfo.id;
     }
 
-    if (ctx.session !== null) {
-        ctx.session.uid = accountInfo.uid;
-    }
+    ctx.session!.uid = userId;
 
     let serviceUrl = decodeURIComponent(service || "/admin");
     if (!serviceUrl.startsWith("/")) {
@@ -150,4 +156,17 @@ router.get("/login/github/callback", async (ctx) => {
 router.get("/logout", (ctx) => {
     ctx.session = null;
     ctx.body = "You have logged out";
+});
+
+router.get("/user", async (ctx) => {
+    const accountInfo = await getWebUser(ctx);
+    if (!accountInfo) {
+        ctx.status = 401;
+        ctx.body = "user not logged in";
+        return;
+    }
+
+    ctx.body = {
+        username: accountInfo.username,
+    };
 });

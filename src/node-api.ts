@@ -8,14 +8,14 @@ import { dao } from "./common";
 import { CheckJoinClusterToken } from "./simple-token";
 import { ClientKeyWrapper } from "./client-pki";
 import { _nodeConfigSchema, NodeInfo } from "./model";
-import { GetAllAddressFromLinkNetworkCIDR } from "utils";
+import { GetAllAddressFromLinkNetworkCIDR, readableZodError } from "./utils";
 import {
     WGLINK_ENDPOINT_MODE_CLIENT_RESOLVE,
     WGLINK_ENDPOINT_MODE_PLAINTEXT,
     WGLINK_ENDPOINT_MODE_SERVER_RESOLVE,
     WGLINK_TYPE_CLIENT,
     WGLINK_TYPE_SERVER,
-} from "consts";
+} from "./consts";
 
 const router = new koaRouter({
     prefix: "/api/v1/node",
@@ -28,19 +28,18 @@ async function verifyClientRequest(ctx: Context): Promise<NodeInfo | null> {
     const signature = ctx.get("X-Client-Sign");
     const clientInfo = await dao.getNodeInfoBySignKeyHash(clientKeyID);
     if (clientInfo === null) {
+        console.log(`Invalid client key id: ${clientKeyID}`);
         return null;
     }
 
-    const pubkey = crypto.createPublicKey(clientInfo.publicSignKey); // DER format
+    const clientPublicKey = new ClientKeyWrapper(clientInfo.publicSignKey);
 
     if (ctx.method === "GET") {
         const signData = `${ctx.path}\n${nonce}\n${ctx.querystring}`;
         if (
-            !crypto.verify(
-                null,
+            !clientPublicKey.checkSignature(
                 Buffer.from(signData),
-                pubkey,
-                Buffer.from(signature, "base64")
+                Buffer.from(signature, "hex")
             )
         ) {
             // signature verification failed
@@ -50,11 +49,9 @@ async function verifyClientRequest(ctx: Context): Promise<NodeInfo | null> {
     } else if (ctx.method === "POST") {
         const signData = `${ctx.path}\n${nonce}\n${ctx.request.body}`;
         if (
-            !crypto.verify(
-                null,
+            !clientPublicKey.checkSignature(
                 Buffer.from(signData),
-                pubkey,
-                Buffer.from(signature, "base64")
+                Buffer.from(signature, "hex")
             )
         ) {
             // signature verification failed
@@ -90,16 +87,42 @@ router.post("/join", async (ctx) => {
 
     if (!body.success) {
         ctx.status = 400;
+        ctx.body = readableZodError(body.error);
         return;
     }
 
     const { token, publicSignKey, name } = body.data;
 
-    const cluster = CheckJoinClusterToken(token);
-    if (cluster === null) {
+    const tokenData = CheckJoinClusterToken(token);
+    if (tokenData === null) {
         console.log(`Invalid join token: ${token}`);
 
         ctx.status = 400;
+        ctx.body = `Invalid join token`;
+        return;
+    }
+
+    const { clusterId, createUserId } = tokenData;
+    const cluster = await dao.getClusterInfo(clusterId);
+    if (cluster === null) {
+        console.log(`Invalid cluster id: ${clusterId}`);
+        ctx.status = 400;
+        ctx.body = `Invalid join token: cluster not found`;
+        return;
+    }
+    const userRole = await dao.getUserRole(createUserId, clusterId);
+    if (userRole === null) {
+        console.log(`Invalid user role: ${createUserId}`);
+        ctx.status = 400;
+        ctx.body = `Invalid join token: create user not found`;
+        return;
+    }
+    if (userRole !== 2) {
+        console.log(
+            `User role is not admin: ${userRole} for cluster: ${clusterId}`
+        );
+        ctx.status = 403;
+        ctx.body = `Invalid join token: permission denied`;
         return;
     }
 
@@ -114,10 +137,8 @@ router.post("/join", async (ctx) => {
         return;
     }
 
-    const newNodeId = `${crypto.randomUUID()}`;
-    await dao.createNodeInfo(
-        cluster,
-        newNodeId,
+    const newNodeId = await dao.createNodeInfo(
+        clusterId,
         name,
         clientPublicSignKey.toPEM(),
         clientPublicSignKey.getKeyHash(),
@@ -125,24 +146,38 @@ router.post("/join", async (ctx) => {
     );
 
     ctx.body = {
-        cluster,
         id: newNodeId,
     };
 });
 
 // Node Configs
 
-router.get("/config", async (ctx) => {
-    const clientInfo = await mustVerifyClient(ctx);
-    if (clientInfo === null) return;
+router.get("/info", async (ctx) => {
+    const nodeInfo = await mustVerifyClient(ctx);
+    if (nodeInfo === null) return;
 
-    const nodeConfig = _nodeConfigSchema.parse(clientInfo.config);
+    ctx.body = {
+        id: nodeInfo.id,
+        clusterId: nodeInfo.clusterId,
+        nodeName: nodeInfo.nodeName,
+        publicSignKey: nodeInfo.publicSignKey,
+        publicSignKeyHash: nodeInfo.publicSignKeyHash,
+        status: nodeInfo.status,
+        lastSeen: nodeInfo.lastSeen,
+    };
+});
+
+router.get("/config", async (ctx) => {
+    const nodeInfo = await mustVerifyClient(ctx);
+    if (nodeInfo === null) return;
+
+    const nodeConfig = _nodeConfigSchema.parse(nodeInfo.config);
     ctx.body = nodeConfig;
 });
 
 router.post("/status", async (ctx) => {
-    const clientInfo = await mustVerifyClient(ctx);
-    if (clientInfo === null) return;
+    const nodeInfo = await mustVerifyClient(ctx);
+    if (nodeInfo === null) return;
 
     // TODO: update status to db
     ctx.body = "OK";
@@ -151,8 +186,8 @@ router.post("/status", async (ctx) => {
 // Keys
 
 router.post("/sync_wireguard_keys", async (ctx) => {
-    const clientInfo = await mustVerifyClient(ctx);
-    if (clientInfo === null) return;
+    const nodeInfo = await mustVerifyClient(ctx);
+    if (nodeInfo === null) return;
 
     const body = z
         .object({
@@ -168,18 +203,16 @@ router.post("/sync_wireguard_keys", async (ctx) => {
     }
 
     const { keys } = body.data;
-    const { id: nodeId } = clientInfo;
-    await dao.updateNodeWireGuardKeys(nodeId, keys);
+    await dao.updateNodeWireGuardKeys(nodeInfo.id, keys);
 
     ctx.body = "OK";
 });
 
 router.get("/peers", async (ctx) => {
-    const clientInfo = await mustVerifyClient(ctx);
-    if (clientInfo === null) return;
+    const nodeInfo = await mustVerifyClient(ctx);
+    if (nodeInfo === null) return;
 
-    const { id: nodeId } = clientInfo;
-    const links = await dao.getEnabledWireGuardLinks(nodeId);
+    const links = await dao.getEnabledWireGuardLinks(nodeInfo.id);
 
     // Compose wglinks
     const composedLinks = await Promise.all(

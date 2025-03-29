@@ -13,23 +13,96 @@ import {
 export class DaoClass extends BaseDaoClass {
     async getPlatformUser(platform: string, platformUid: string) {
         const result = await this.query(
-            "select * from t_user where platform=? and platform_uid=?",
+            "select * from t_user where f_platform=? and f_platform_uid=?",
             [platform, platformUid]
         );
         if (result.length < 1) {
             return null;
         }
-        return result[0];
+        return _userInfoSchema.parse(result[0]);
     }
 
     async getUserByID(uid: string): Promise<UserInfo | null> {
-        const result = await this.query("select * from t_user where uid=?", [
+        const result = await this.query("select * from t_user where f_id=?", [
             uid,
         ]);
         if (result.length < 1) {
             return null;
         }
         return _userInfoSchema.parse(result[0]);
+    }
+
+    async createUser(
+        platform: string,
+        platformUid: string,
+        platformUsername: string
+    ) {
+        const result = await this.insert("t_user", {
+            f_platform: platform,
+            f_platform_uid: platformUid,
+            f_username: platformUsername,
+        });
+        return result.insertId;
+    }
+
+    async getClustersByUser(userId: number) {
+        const result = await this.query(
+            "select * from t_cluster where f_id in (select f_cluster_id from t_user_role where f_user_id=?)",
+            [userId]
+        );
+        return result.map((row) => _clusterSchema.parse(row));
+    }
+
+    async createCluster(
+        clusterName: string,
+        clusterSubnetCIDR: string,
+        clusterSubnetCIDRs: string[],
+        createUserId: number
+    ) {
+        const conn = await this.getConnection();
+        try {
+            await conn.begin();
+            const result = await conn.insert("t_cluster", {
+                f_name: clusterName,
+                f_subnet_cidr: clusterSubnetCIDR,
+            });
+            const newClusterId = result.insertId;
+
+            for (let i = 0; i < clusterSubnetCIDRs.length; i++) {
+                const subnetCIDR = clusterSubnetCIDRs[i];
+                await conn.insert("t_subnet", {
+                    f_cluster_id: newClusterId,
+                    f_subnet_cidr: subnetCIDR,
+                    f_status: 0, // available
+                });
+            }
+
+            await conn.insert("t_user_role", {
+                f_user_id: createUserId,
+                f_cluster_id: newClusterId,
+                f_role_id: 2, // admin
+            });
+
+            await conn.commit();
+
+            return newClusterId;
+        } finally {
+            conn.finish();
+        }
+    }
+
+    async getUserRole(
+        userId: number,
+        clusterId: number
+    ): Promise<number | null> {
+        const result = await this.query(
+            "select * from t_user_role where f_user_id=? and f_cluster_id=?",
+            [userId, clusterId]
+        );
+        if (result.length < 1) {
+            return null;
+        }
+        return result[0].f_role_id;
     }
 
     async getNodeInfoBySignKeyHash(hash: string): Promise<NodeInfo | null> {
@@ -44,9 +117,10 @@ export class DaoClass extends BaseDaoClass {
     }
 
     async getNodeInfoById(nodeId: number) {
-        const result = await this.query("select * from t_node where f_id=?", [
-            nodeId,
-        ]);
+        const result = await this.query(
+            "select * from t_node_info where f_id=?",
+            [nodeId]
+        );
         if (result.length < 1) {
             return null;
         }
@@ -54,21 +128,20 @@ export class DaoClass extends BaseDaoClass {
     }
 
     async createNodeInfo(
-        cluster: string,
-        nodeId: string,
+        clusterId: number,
         nodeName: string,
         publicSignKey: string,
         publicSignKeyHash: string,
         config: string
     ) {
-        await this.insert("t_node", {
-            f_cluster: cluster,
-            f_node_id: nodeId,
+        const result = await this.insert("t_node_info", {
+            f_cluster_id: clusterId,
             f_node_name: nodeName,
             f_public_sign_key: publicSignKey,
             f_public_sign_key_hash: publicSignKeyHash,
             f_config: config,
         });
+        return result.insertId;
     }
 
     async updateNodeWireGuardKeys(nodeId: number, keys: string[]) {

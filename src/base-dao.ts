@@ -150,6 +150,15 @@ export class BaseConnection extends QueryMethods<BaseConnection> {
     close() {
         this.conn.destroy();
     }
+
+    finish() {
+        this.rollback()
+            .then(() => this.release())
+            .catch((e) => {
+                console.log(e);
+                this.close();
+            });
+    }
 }
 
 export class BaseDaoClass extends QueryMethods<BaseConnection> {

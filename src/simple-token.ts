@@ -3,14 +3,19 @@ import { CreateServiceToken, CheckServiceToken } from "./token";
 
 const _joinClusterTokenSchema = z.object({
     type: z.literal("join"),
-    cluster: z.string(),
+    clusterId: z.number(),
+    createUserId: z.number(),
 });
 
-export function CreateJoinClusterToken(cluster: string) {
+export function CreateJoinClusterToken(
+    clusterId: number,
+    createUserId: number
+) {
     return CreateServiceToken(
         {
             type: "join",
-            cluster,
+            clusterId,
+            createUserId,
         },
         180
     );
@@ -25,7 +30,7 @@ export function CheckJoinClusterToken(token: string) {
         }
         const tokenData = parseResult.data;
         if (tokenData.type == "join") {
-            return tokenData.cluster;
+            return tokenData;
         }
     }
 

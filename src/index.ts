@@ -3,22 +3,13 @@ import koaBodyParser from "koa-bodyparser";
 import koaJSON from "koa-json";
 import koaRouter from "koa-router";
 import koaSession from "koa-session";
-import z from "zod";
 
 import { NewAsyncRootMW } from "./middleware";
-import wgRouter from "./wg-api";
-import linkRouter from "./link-api";
-import tunnelRouter from "./tunnel-api";
-import authRouter from "./oauth-api";
+import authRouter from "./auth-api";
 import adminRouter from "./admin-api";
 import nodeRouter from "./node-api";
-import { LoadServiceInfo, logger } from "./common";
+import { logger } from "./common";
 import { GetKoaAppSecretSync } from "./credentials";
-import {
-    CreateReportToken,
-    CreateSimpleToken,
-    CheckAuthToken,
-} from "./simple-token";
 
 const app = new koa({
     proxy: true,
@@ -50,53 +41,6 @@ router.get("/", (ctx) => {
     ctx.body = "OK";
 });
 
-router.post("/token", async (ctx) => {
-    const body = z
-        .object({
-            network: z.string(),
-            host: z.string(),
-            token: z.string(),
-        })
-        .safeParse(ctx.request.body);
-    if (!body.success) {
-        console.log(body.error);
-        ctx.status = 400;
-        return;
-    }
-    const { network, host, token } = body.data;
-
-    if (CheckAuthToken(token) == null) {
-        ctx.status = 401;
-        return;
-    }
-
-    ctx.body = CreateSimpleToken(network, host);
-});
-
-router.post("/report_token", async (ctx) => {
-    const serviceInfo = LoadServiceInfo(ctx);
-    if (serviceInfo == null) return;
-
-    const { network, host } = serviceInfo;
-
-    ctx.body = CreateReportToken(network, host);
-});
-
-router.get("/info", async (ctx) => {
-    const serviceInfo = LoadServiceInfo(ctx, []);
-    if (serviceInfo == null) return;
-
-    const { network, host } = serviceInfo;
-
-    ctx.body = {
-        network,
-        host,
-    };
-});
-
-app.use(wgRouter.routes()).use(wgRouter.allowedMethods());
-app.use(linkRouter.routes()).use(linkRouter.allowedMethods());
-app.use(tunnelRouter.routes()).use(tunnelRouter.allowedMethods());
 app.use(authRouter.routes()).use(authRouter.allowedMethods());
 app.use(adminRouter.routes()).use(adminRouter.allowedMethods());
 app.use(nodeRouter.routes()).use(nodeRouter.allowedMethods());

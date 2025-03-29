@@ -1,13 +1,48 @@
 import z from "zod";
 
-export const _userInfoSchema = z.object({
-    uid: z.number(),
-    platform: z.string(),
-    platform_uid: z.string(),
-    uname: z.string(),
-});
+export const _userInfoSchema = z
+    .object({
+        f_id: z.number(),
+        f_platform: z.string(),
+        f_platform_uid: z.string(),
+        f_username: z.string(),
+        f_create_time: z.coerce.date(),
+        f_update_time: z.coerce.date(),
+    })
+    .transform((row) => {
+        return {
+            id: row.f_id,
+            platform: row.f_platform,
+            platformUid: row.f_platform_uid,
+            username: row.f_username,
+            createTime: row.f_create_time,
+            updateTime: row.f_update_time,
+        };
+    });
 
 export type UserInfo = z.infer<typeof _userInfoSchema>;
+
+export const _userRoleSchema = z
+    .object({
+        f_id: z.number(),
+        f_user_id: z.number(),
+        f_cluster_id: z.number(),
+        f_role_id: z.number(),
+        f_create_time: z.coerce.date(),
+        f_update_time: z.coerce.date(),
+    })
+    .transform((row) => {
+        return {
+            id: row.f_id,
+            userId: row.f_user_id,
+            clusterId: row.f_cluster_id,
+            roleId: row.f_role_id,
+            createTime: row.f_create_time,
+            updateTime: row.f_update_time,
+        };
+    });
+
+export type UserRole = z.infer<typeof _userRoleSchema>;
 
 export const _nodeInfoSchema = z
     .object({

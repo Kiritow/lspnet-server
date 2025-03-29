@@ -1,4 +1,3 @@
-import { CheckServiceToken, ServiceTokenDataBase } from "./token";
 import { DaoClass } from "./dao";
 import { GetMySQLOptionSync, GetInfluxDBOptionSync } from "./credentials";
 import getOrCreateLogger from "./base-log";
@@ -28,55 +27,32 @@ export const influxWriteAPI = new InfluxAPI(
     influxDBOptions.bucket
 );
 
-export function CheckServiceTokenWithType<
-    TokenDataType extends ServiceTokenDataBase,
->(token: string, allowedTypes: string[]) {
-    const tokenInfo = CheckServiceToken<TokenDataType>(token);
-    if (tokenInfo != null) {
-        const tokenData = tokenInfo.data;
-        if (allowedTypes.indexOf(tokenData.type) != -1) {
-            return tokenData;
-        }
+export async function getWebUser(ctx: Context) {
+    if (ctx.session == null) {
+        return null;
     }
 
-    return null;
-}
-
-export function GetRequestToken(ctx: Context): string {
-    const { "x-service-token": token } = ctx.headers;
-    switch (typeof token) {
-        case "string":
-            return token;
-        case "object":
-            return token[0];
-        default:
-            return "";
+    if (ctx.session.isNew || ctx.session.uid == null || ctx.session.uid <= 0) {
+        return null;
     }
+
+    const accountInfo = await dao.getUserByID(ctx.session.uid);
+    if (accountInfo == null) {
+        logger.warn(`invalid uid: ${ctx.session.uid}`);
+        return null;
+    }
+
+    return accountInfo;
 }
 
-export interface ServiceInfoToken {
-    type: string;
-    network: string;
-    host: string;
-}
-
-export function LoadServiceInfo(ctx: Context, allowedTypes?: string[]) {
-    const realAllowedTypes = allowedTypes || ["simple"];
-
-    const token = GetRequestToken(ctx);
-    if (token != null) {
-        const tokenData = CheckServiceTokenWithType<ServiceInfoToken>(
-            token,
-            realAllowedTypes
-        );
-        if (tokenData != null) {
-            return tokenData;
-        }
-
-        ctx.status = 403;
+export async function mustLogin(ctx: Context) {
+    const accountInfo = await getWebUser(ctx);
+    if (!accountInfo) {
+        ctx.body = {
+            message: "user not logged in",
+        };
         return;
     }
 
-    ctx.status = 401;
-    return;
+    return accountInfo;
 }

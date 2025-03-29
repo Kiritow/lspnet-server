@@ -76,7 +76,7 @@ export function CheckServiceToken(
             tokenInfo.iat < Math.floor(mustCreateAfterTs / 1000)
         ) {
             console.log(
-                `token create time invalid, require: ${new Date(mustCreateAfterTs).toISOString()}, got: ${new Date(data.iat * 1000)}`
+                `token create time invalid, require: ${new Date(mustCreateAfterTs).toISOString()}, got: ${new Date(tokenInfo.iat * 1000)}`
             );
             return null;
         }
