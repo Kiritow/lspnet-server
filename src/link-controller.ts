@@ -297,6 +297,27 @@ export async function runLinkController() {
                 updateSqlParams.push(clientLinkId);
             } else {
                 // TODO: update client link.
+                // sync extra
+                const clientLink = await dao._lockWireGuardLink(
+                    conn,
+                    updatedTemplate.wgLinkClientId
+                );
+                if (clientLink === null) {
+                    console.log(
+                        `Template ${template.id}: Client link ${updatedTemplate.wgLinkClientId} not found`
+                    );
+                    continue;
+                }
+
+                const clientLinkExtra = JSON.parse(clientLink.extra);
+                if (extraConfigForTemplate.ospf !== undefined) {
+                    clientLinkExtra.ospf = extraConfigForTemplate.ospf;
+                }
+                await dao._updateWireGuardLink(
+                    conn,
+                    updatedTemplate.wgLinkClientId,
+                    { extra: JSON.stringify(clientLinkExtra) }
+                );
             }
 
             if (updatedTemplate.wgLinkServerId === 0) {
@@ -321,6 +342,27 @@ export async function runLinkController() {
                 updateSqlParams.push(serverLinkId);
             } else {
                 // TODO: update server link.
+                // sync extra
+                const serverLink = await dao._lockWireGuardLink(
+                    conn,
+                    updatedTemplate.wgLinkServerId
+                );
+                if (serverLink === null) {
+                    console.log(
+                        `Template ${template.id}: Server link ${updatedTemplate.wgLinkServerId} not found`
+                    );
+                    continue;
+                }
+
+                const serverLinkExtra = JSON.parse(serverLink.extra);
+                if (extraConfigForTemplate.ospf !== undefined) {
+                    serverLinkExtra.ospf = extraConfigForTemplate.ospf;
+                }
+                await dao._updateWireGuardLink(
+                    conn,
+                    updatedTemplate.wgLinkServerId,
+                    { extra: JSON.stringify(serverLinkExtra) }
+                );
             }
 
             // mark template as ready

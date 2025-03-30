@@ -355,6 +355,41 @@ export class DaoClass extends BaseDaoClass {
         return result.insertId;
     }
 
+    async _lockWireGuardLink(conn: BaseConnection, linkId: number) {
+        const result = await conn.query(
+            "select * from t_node_wglink where f_id=? for update",
+            [linkId]
+        );
+        if (result.length < 1) {
+            return null;
+        }
+        return _nodeWireGuardLinkSchema.parse(result[0]);
+    }
+
+    async _updateWireGuardLink(
+        conn: BaseConnection,
+        linkId: number,
+        data: {
+            extra?: string;
+        }
+    ) {
+        const sqlParts: string[] = [];
+        const params: unknown[] = [];
+
+        if (data.extra !== undefined) {
+            sqlParts.push("f_extra=?");
+            params.push(data.extra);
+        }
+        if (sqlParts.length < 1) {
+            return;
+        }
+
+        const sql = `update t_node_wglink set ${sqlParts.join(",")} where f_id=?`;
+        params.push(linkId);
+
+        await conn.run(sql, params);
+    }
+
     async updateNodeWireGuardKeys(nodeId: number, keys: string[]) {
         const results = await this.query(
             "select * from t_node_wgkey where f_node_id=?",
