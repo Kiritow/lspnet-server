@@ -105,9 +105,55 @@ export const _nodeConfigSchema = z.object({
 
 export type NodeConfig = z.infer<typeof _nodeConfigSchema>;
 
-export const _nodeStatusSchema = z.object({});
+export const _nodeLinkTemplateSchema = z
+    .object({
+        f_id: z.number(),
+        f_src_node_id: z.number(),
+        f_src_wgkey_id: z.number(),
+        f_src_listen_port: z.number(),
+        f_dst_node_id: z.number(),
+        f_dst_wgkey_id: z.number(),
+        f_dst_listen_port: z.number(),
+        f_mtu: z.number(),
+        f_subnet_id: z.number(),
+        f_connect_ip: z.string(),
+        f_wglink_client_id: z.number(),
+        f_wglink_server_id: z.number(),
+        f_extra: z.string(),
+        f_enabled: z.number(),
+        f_ready: z.number(),
 
-export type NodeStatus = z.infer<typeof _nodeStatusSchema>;
+        f_last_check: z.coerce.date(),
+        f_last_sync: z.coerce.date(),
+        f_create_time: z.coerce.date(),
+        f_update_time: z.coerce.date(),
+    })
+    .transform((row) => {
+        return {
+            id: row.f_id,
+            srcNodeId: row.f_src_node_id,
+            srcWgKeyId: row.f_src_wgkey_id,
+            srcListenPort: row.f_src_listen_port,
+            dstNodeId: row.f_dst_node_id,
+            dstWgKeyId: row.f_dst_wgkey_id,
+            dstListenPort: row.f_dst_listen_port,
+            mtu: row.f_mtu,
+            subnetId: row.f_subnet_id,
+            connectIP: row.f_connect_ip,
+            wgLinkClientId: row.f_wglink_client_id,
+            wgLinkServerId: row.f_wglink_server_id,
+            extra: row.f_extra,
+            enabled: row.f_enabled,
+            ready: row.f_ready,
+
+            lastCheck: row.f_last_check,
+            lastSync: row.f_last_sync,
+            createTime: row.f_create_time,
+            updateTime: row.f_update_time,
+        };
+    });
+
+export type NodeLinkTemplate = z.infer<typeof _nodeLinkTemplateSchema>;
 
 export const _nodeWireGuardKeySchema = z
     .object({
@@ -177,7 +223,7 @@ export type NodeWireGuardLink = z.infer<typeof _nodeWireGuardLinkSchema>;
 export const _clusterSubnetSchema = z
     .object({
         f_id: z.number(),
-        f_cluster: z.string(),
+        f_cluster_id: z.number(),
         f_subnet_cidr: z.string(),
         f_status: z.number(),
         f_create_time: z.coerce.date(),
@@ -186,7 +232,7 @@ export const _clusterSubnetSchema = z
     .transform((row) => {
         return {
             id: row.f_id,
-            cluster: row.f_cluster,
+            clusterId: row.f_cluster_id,
             subnetCIDR: row.f_subnet_cidr,
             status: row.f_status,
             createTime: row.f_create_time,

@@ -2,6 +2,8 @@ import assert from "assert";
 import { Address4 } from "ip-address";
 import z from "zod";
 
+import { _nodeConfigSchema } from "./model";
+
 export function readableZodError<T>(err: z.ZodError<T>): string {
     return err.errors
         .map((e) => {
@@ -62,4 +64,22 @@ export function IsSubnetOverlapped(cidrArray: string[], subnetCIDR: string) {
     }
 
     return false;
+}
+
+export function parseNodeConfig(rawConfig: string) {
+    try {
+        const config = JSON.parse(rawConfig);
+        return _nodeConfigSchema.parse(config);
+    } catch (e) {
+        const errorMessage =
+            e instanceof z.ZodError
+                ? readableZodError(e)
+                : e instanceof Error
+                  ? e.message
+                  : `${e}`;
+
+        throw new Error(`parse node config error: ${errorMessage}`, {
+            cause: e,
+        });
+    }
 }

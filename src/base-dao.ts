@@ -1,43 +1,57 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import * as mysql from "mysql2";
+
+export interface QueryOptions {
+    disableLogger?: boolean;
+    logger?: ILogger;
+}
 
 class QueryMethods<TBase extends QueryMethods<TBase>> {
     queryEx<T extends mysql.QueryResult = mysql.RowDataPacket[]>(
         sql: string,
-        params: unknown
+        params: unknown,
+        options?: QueryOptions
     ): Promise<{ results: T; fields?: mysql.FieldPacket[] }> {
         throw new Error("Method not implemented.");
     }
 
     async query<T extends mysql.QueryResult = mysql.RowDataPacket[]>(
         sql: string,
-        params: unknown
+        params: unknown,
+        options?: QueryOptions
     ) {
-        return (await this.queryEx<T>(sql, params)).results;
+        return (await this.queryEx<T>(sql, params, options)).results;
     }
 
     async run<T extends mysql.QueryResult = mysql.ResultSetHeader>(
         sql: string,
-        params: unknown
+        params: unknown,
+        options?: QueryOptions
     ) {
-        return (await this.queryEx<T>(sql, params)).results;
+        return (await this.queryEx<T>(sql, params, options)).results;
     }
 
     async insert(
         table: string,
-        data: Record<string, unknown>,
-        ignore?: boolean
+        data: Record<string, unknown>
     ): Promise<mysql.ResultSetHeader> {
         const keys = Object.keys(data);
         const sqlValuesPart = new Array(keys.length).fill("?").join(",");
 
-        if (ignore) {
-            const sql = `INSERT IGNORE INTO ${table}(${keys.join(",")}) VALUES(${sqlValuesPart})`;
-            const params = keys.map((key) => data[key]);
-
-            return this.run(sql, params);
-        }
-
         const sql = `INSERT INTO ${table}(${keys.join(",")}) VALUES(${sqlValuesPart})`;
+        const params = keys.map((key) => data[key]);
+
+        return this.run(sql, params);
+    }
+
+    async insertIgnore(
+        table: string,
+        data: Record<string, unknown>
+    ): Promise<mysql.ResultSetHeader> {
+        const keys = Object.keys(data);
+        const sqlValuesPart = new Array(keys.length).fill("?").join(",");
+
+        const sql = `INSERT IGNORE INTO ${table}(${keys.join(",")}) VALUES(${sqlValuesPart})`;
         const params = keys.map((key) => data[key]);
 
         return this.run(sql, params);
@@ -55,7 +69,11 @@ class QueryMethods<TBase extends QueryMethods<TBase>> {
             .map((key) => `${key}=VALUES(${key})`)
             .join(",");
         if (updateTimeFieldName !== undefined) {
-            sqlUpdatePart += `,${updateTimeFieldName}=NOW()`;
+            if (upsertKeys.length > 0) {
+                sqlUpdatePart += `,${updateTimeFieldName}=NOW()`;
+            } else {
+                sqlUpdatePart = `${updateTimeFieldName}=NOW()`;
+            }
         }
 
         const sql = `insert into ${table}(${keys.join(",")}) values(${sqlValuesPart}) on duplicate key update ${sqlUpdatePart}`;
@@ -85,7 +103,23 @@ export class BaseConnection extends QueryMethods<BaseConnection> {
             if (this.logger) {
                 this.logger.debug("begin transaction");
             }
+
             this.conn.beginTransaction((err) => {
+                if (err) {
+                    return reject(err);
+                }
+
+                return resolve();
+            });
+        });
+    }
+
+    beginReadonly(): Promise<void> {
+        return new Promise((resolve, reject) => {
+            if (this.logger) {
+                this.logger.debug("begin transaction read only");
+            }
+            this.conn.query("START TRANSACTION READ ONLY", (err) => {
                 if (err) {
                     return reject(err);
                 }
@@ -127,12 +161,14 @@ export class BaseConnection extends QueryMethods<BaseConnection> {
 
     async queryEx<T extends mysql.QueryResult = mysql.RowDataPacket[]>(
         sql: string,
-        params: unknown
+        params: unknown,
+        options?: QueryOptions
     ): Promise<{ results: T; fields?: mysql.FieldPacket[] }> {
         return new Promise((resolve, reject) => {
-            if (this.logger) {
-                this.logger.debug(sql, params);
+            if (options?.disableLogger !== true) {
+                (options?.logger || this.logger)?.debug(sql, params);
             }
+
             this.conn.query<T>(sql, params, (err, results, fields) => {
                 if (err) {
                     return reject(err);
@@ -147,21 +183,21 @@ export class BaseConnection extends QueryMethods<BaseConnection> {
         this.conn.release();
     }
 
+    finish() {
+        this.rollback()
+            .then(() => this.conn.release())
+            .catch((err) => {
+                console.log(err);
+                this.conn.destroy();
+            });
+    }
+
     close() {
         this.conn.destroy();
     }
-
-    finish() {
-        this.rollback()
-            .then(() => this.release())
-            .catch((e) => {
-                console.log(e);
-                this.close();
-            });
-    }
 }
 
-export class BaseDaoClass extends QueryMethods<BaseConnection> {
+export class BaseDaoClass extends QueryMethods<BaseDaoClass> {
     pool: mysql.Pool;
     logger?: ILogger;
 
@@ -174,15 +210,17 @@ export class BaseDaoClass extends QueryMethods<BaseConnection> {
     // Utils
     async queryEx<T extends mysql.QueryResult = mysql.RowDataPacket[]>(
         sql: string,
-        params: unknown
+        params: unknown,
+        options?: QueryOptions
     ): Promise<{
         results: T;
         fields?: mysql.FieldPacket[];
     }> {
         return new Promise((resolve, reject) => {
-            if (this.logger) {
-                this.logger.debug(sql, params);
+            if (options?.disableLogger !== true) {
+                (options?.logger || this.logger)?.debug(sql, params);
             }
+
             this.pool.query<T>(sql, params, (err, results, fields) => {
                 if (err) {
                     return reject(err);
@@ -201,7 +239,7 @@ export class BaseDaoClass extends QueryMethods<BaseConnection> {
                     return reject(err);
                 }
 
-                return resolve(new BaseConnection(conn));
+                return resolve(new BaseConnection(conn, this.logger));
             });
         });
     }

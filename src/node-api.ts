@@ -1,5 +1,4 @@
 import assert from "assert";
-import crypto from "crypto";
 import { Context } from "koa";
 import koaRouter from "koa-router";
 import z from "zod";
@@ -7,8 +6,12 @@ import z from "zod";
 import { dao } from "./common";
 import { CheckJoinClusterToken } from "./simple-token";
 import { ClientKeyWrapper } from "./client-pki";
-import { _nodeConfigSchema, NodeInfo } from "./model";
-import { GetAllAddressFromLinkNetworkCIDR, readableZodError } from "./utils";
+import { NodeInfo } from "./model";
+import {
+    GetAllAddressFromLinkNetworkCIDR,
+    parseNodeConfig,
+    readableZodError,
+} from "./utils";
 import {
     WGLINK_ENDPOINT_MODE_CLIENT_RESOLVE,
     WGLINK_ENDPOINT_MODE_PLAINTEXT,
@@ -47,7 +50,8 @@ async function verifyClientRequest(ctx: Context): Promise<NodeInfo | null> {
             return null;
         }
     } else if (ctx.method === "POST") {
-        const signData = `${ctx.path}\n${nonce}\n${ctx.request.body}`;
+        const signData = `${ctx.path}\n${nonce}\n${ctx.request.rawBody}`;
+        console.log(`Sign data: ${signData}`);
         if (
             !clientPublicKey.checkSignature(
                 Buffer.from(signData),
@@ -171,8 +175,23 @@ router.get("/config", async (ctx) => {
     const nodeInfo = await mustVerifyClient(ctx);
     if (nodeInfo === null) return;
 
-    const nodeConfig = _nodeConfigSchema.parse(nodeInfo.config);
-    ctx.body = nodeConfig;
+    try {
+        parseNodeConfig(nodeInfo.config);
+    } catch (e) {
+        console.log(e);
+        console.log(
+            `[WARNING] node ${nodeInfo.id} config is invalid: ${e instanceof Error ? e.message : e}`
+        );
+        ctx.status = 202;
+        ctx.body = {
+            message: "config not ready yet.",
+        };
+        return;
+    }
+
+    ctx.body = {
+        config: nodeInfo.config, // raw JSON string. for client hash and versioning.
+    };
 });
 
 router.post("/status", async (ctx) => {
@@ -180,7 +199,9 @@ router.post("/status", async (ctx) => {
     if (nodeInfo === null) return;
 
     // TODO: update status to db
-    ctx.body = "OK";
+    ctx.body = {
+        message: "OK",
+    };
 });
 
 // Keys
@@ -205,7 +226,9 @@ router.post("/sync_wireguard_keys", async (ctx) => {
     const { keys } = body.data;
     await dao.updateNodeWireGuardKeys(nodeInfo.id, keys);
 
-    ctx.body = "OK";
+    ctx.body = {
+        message: "OK",
+    };
 });
 
 router.get("/peers", async (ctx) => {
@@ -258,16 +281,16 @@ router.get("/peers", async (ctx) => {
         }
 
         // build endpoint
-        let endpoint: string;
+        let useEndpoint: string;
         if (link.endpointMode === WGLINK_ENDPOINT_MODE_PLAINTEXT) {
-            endpoint = link.endpoint;
+            useEndpoint = link.endpoint;
         } else if (link.endpointMode === WGLINK_ENDPOINT_MODE_CLIENT_RESOLVE) {
-            endpoint = link.endpointTemplate;
+            useEndpoint = link.endpointTemplate;
         } else if (link.endpointMode === WGLINK_ENDPOINT_MODE_SERVER_RESOLVE) {
             // TODO: service side rendering.
-            endpoint = link.endpointTemplate;
+            useEndpoint = link.endpointTemplate;
         } else {
-            endpoint = "";
+            useEndpoint = "";
         }
 
         return {
@@ -279,7 +302,7 @@ router.get("/peers", async (ctx) => {
 
             peerPublicKey: link.peerPublicKey,
             keepalive: link.keepalive,
-            endpoint,
+            endpoint: useEndpoint,
             // allowedIPs: ... // client side just allow all.
 
             extra: link.extra,
