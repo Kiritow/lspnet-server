@@ -395,7 +395,7 @@ export class DaoClass extends BaseDaoClass {
             "select * from t_node_wgkey where f_node_id=?",
             [nodeId]
         );
-        const existKeys = new Set(results.map((row) => row.f_wg_public_key));
+        const existKeys = new Set(results.map((row) => row.f_public_key));
         await Promise.all(
             keys.map(async (key) => {
                 if (existKeys.has(key)) {
