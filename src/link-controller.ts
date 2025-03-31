@@ -151,9 +151,6 @@ export async function runLinkController() {
             const extraConfigForTemplate: Record<string, unknown> = JSON.parse(
                 template.extra
             );
-            const extraConfigForWGLinks = {
-                templateId,
-            };
 
             // check destination IP
             let useConnectIP: string;
@@ -273,6 +270,13 @@ export async function runLinkController() {
             // clear and reuse...
             updateSqlParams.length = 0;
             updateSqlParts.length = 0;
+
+            const extraConfigForWGLinks: Record<string, unknown> = {
+                templateId,
+            };
+            if (extraConfigForTemplate.ospf !== undefined) {
+                extraConfigForWGLinks.ospf = extraConfigForTemplate.ospf;
+            }
 
             if (updatedTemplate.wgLinkClientId === 0) {
                 // create client link
