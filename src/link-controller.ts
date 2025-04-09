@@ -4,7 +4,7 @@ import { parseNodeConfig } from "./utils";
 
 export async function StartLinkController() {}
 
-export async function patchLinkExtraWithTemplateExtra(
+export function patchLinkExtraWithTemplateExtra(
     linkExtra: Record<string, unknown>,
     templateExtra: Record<string, unknown>,
     patchMode: "client" | "server"
