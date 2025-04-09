@@ -225,6 +225,17 @@ export class DaoClass extends BaseDaoClass {
         return _nodeLinkTemplateSchema.parse(result[0]);
     }
 
+    async getLinkTemplateByLinkId(linkId: number) {
+        const result = await this.query(
+            "select * from t_node_link_template where f_wglink_client_id=? or f_wglink_server_id=?",
+            [linkId, linkId]
+        );
+        if (result.length < 1) {
+            return null;
+        }
+        return _nodeLinkTemplateSchema.parse(result[0]);
+    }
+
     async updateLinkTemplate(
         linkTemplateId: number,
         data: {

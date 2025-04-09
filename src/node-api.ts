@@ -3,7 +3,7 @@ import { Context } from "koa";
 import koaRouter from "koa-router";
 import z from "zod";
 
-import { dao } from "./common";
+import { dao, influxWriteAPI } from "./common";
 import { CheckJoinClusterToken } from "./simple-token";
 import { ClientKeyWrapper } from "./client-pki";
 import { NodeInfo } from "./model";
@@ -311,5 +311,118 @@ router.get("/peers", async (ctx) => {
 
     ctx.body = {
         peers,
+    };
+});
+
+router.post("/link_telemetry", async (ctx) => {
+    const nodeInfo = await mustVerifyClient(ctx);
+    if (nodeInfo === null) return;
+
+    const body = z
+        .object({
+            links: z.array(
+                z.object({
+                    id: z.coerce.number(),
+                    ping: z.coerce.number(),
+                    rx: z.coerce.number(),
+                    tx: z.coerce.number(),
+                })
+            ),
+        })
+        .safeParse(ctx.request.body);
+
+    if (!body.success) {
+        ctx.status = 400;
+        ctx.body = readableZodError(body.error);
+        return;
+    }
+
+    const { links } = body.data;
+
+    const clusterInfo = await dao.getClusterInfo(nodeInfo.clusterId);
+    if (clusterInfo === null) {
+        ctx.status = 400;
+        ctx.body = `Invalid cluster id: ${nodeInfo.clusterId}`;
+        return;
+    }
+
+    await Promise.all(
+        links.map(async (linkTelemetry) => {
+            const linkTemplate = await dao.getLinkTemplateByLinkId(
+                linkTelemetry.id
+            );
+            if (linkTemplate === null) {
+                console.log(`Invalid link id: ${linkTelemetry.id}`);
+                return;
+            }
+            if (
+                linkTemplate.srcNodeId !== nodeInfo.id &&
+                linkTemplate.dstNodeId !== nodeInfo.id
+            ) {
+                console.log(
+                    `Invalid link id: ${linkTelemetry.id} for node: ${nodeInfo.id}`
+                );
+                return;
+            }
+
+            let telemetrySenderName: string;
+            let telemetryPeerName: string;
+
+            if (linkTemplate.srcNodeId === nodeInfo.id) {
+                const dstNodeInfo = await dao.getNodeInfoById(
+                    linkTemplate.dstNodeId
+                );
+                assert(
+                    dstNodeInfo !== null,
+                    `Invalid dst node id: ${linkTemplate.dstNodeId}`
+                );
+
+                if (linkTemplate.wgLinkClientId === linkTelemetry.id) {
+                    telemetrySenderName = nodeInfo.nodeName;
+                    telemetryPeerName = dstNodeInfo.nodeName;
+                } else {
+                    telemetrySenderName = dstNodeInfo.nodeName;
+                    telemetryPeerName = nodeInfo.nodeName;
+                }
+            } else {
+                const srcNodeInfo = await dao.getNodeInfoById(
+                    linkTemplate.srcNodeId
+                );
+                assert(
+                    srcNodeInfo !== null,
+                    `Invalid src node id: ${linkTemplate.srcNodeId}`
+                );
+
+                if (linkTemplate.wgLinkClientId === linkTelemetry.id) {
+                    telemetrySenderName = srcNodeInfo.nodeName;
+                    telemetryPeerName = nodeInfo.nodeName;
+                } else {
+                    telemetrySenderName = nodeInfo.nodeName;
+                    telemetryPeerName = srcNodeInfo.nodeName;
+                }
+            }
+
+            const dataPack: Record<string, number> = {
+                ping: linkTelemetry.ping,
+                rx: linkTelemetry.rx,
+                tx: linkTelemetry.tx,
+            };
+            if (dataPack.ping < 1) {
+                delete dataPack.ping;
+            }
+
+            // To mimic existing telemetry data structure...
+            influxWriteAPI.writeMultiInt("inf.network.monitoring", dataPack, {
+                network: clusterInfo.name,
+                host: telemetrySenderName,
+                name: telemetryPeerName,
+            });
+        })
+    );
+
+    await influxWriteAPI.flush();
+
+    ctx.body = {
+        message: "OK",
     };
 });
