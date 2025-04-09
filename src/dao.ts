@@ -381,11 +381,35 @@ export class DaoClass extends BaseDaoClass {
         conn: BaseConnection,
         linkId: number,
         data: {
+            listenPort?: number;
+            endpointMode?: number;
+            endpointTemplate?: string;
+            endpoint?: string;
             extra?: string;
         }
     ) {
         const sqlParts: string[] = [];
         const params: unknown[] = [];
+
+        if (data.listenPort !== undefined) {
+            sqlParts.push("f_listen_port=?");
+            params.push(data.listenPort);
+        }
+
+        if (data.endpointMode !== undefined) {
+            sqlParts.push("f_endpoint_mode=?");
+            params.push(data.endpointMode);
+        }
+
+        if (data.endpointTemplate !== undefined) {
+            sqlParts.push("f_endpoint_template=?");
+            params.push(data.endpointTemplate);
+        }
+
+        if (data.endpoint !== undefined) {
+            sqlParts.push("f_endpoint=?");
+            params.push(data.endpoint);
+        }
 
         if (data.extra !== undefined) {
             sqlParts.push("f_extra=?");

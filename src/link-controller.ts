@@ -326,7 +326,6 @@ export async function runLinkController() {
                 updateSqlParams.push(clientLinkId);
             } else {
                 // TODO: update client link.
-                // sync extra
                 const clientLink = await dao._lockWireGuardLink(
                     conn,
                     updatedTemplate.wgLinkClientId
@@ -338,15 +337,23 @@ export async function runLinkController() {
                     continue;
                 }
 
+                // sync listen port, endpoint, extra
                 const clientLinkExtra = patchLinkExtraWithTemplateExtra(
                     JSON.parse(clientLink.extra),
                     extraConfigForTemplate,
                     "client"
                 );
+
                 await dao._updateWireGuardLink(
                     conn,
                     updatedTemplate.wgLinkClientId,
-                    { extra: JSON.stringify(clientLinkExtra) }
+                    {
+                        listenPort: updatedTemplate.srcListenPort,
+                        endpointMode: 1,
+                        endpointTemplate: `${useConnectIP}:${updatedTemplate.dstListenPort}`,
+                        endpoint: `${useConnectIP}:${updatedTemplate.dstListenPort}`,
+                        extra: JSON.stringify(clientLinkExtra),
+                    }
                 );
             }
 
@@ -397,10 +404,14 @@ export async function runLinkController() {
                     extraConfigForTemplate,
                     "server"
                 );
+
                 await dao._updateWireGuardLink(
                     conn,
                     updatedTemplate.wgLinkServerId,
-                    { extra: JSON.stringify(serverLinkExtra) }
+                    {
+                        listenPort: updatedTemplate.dstListenPort,
+                        extra: JSON.stringify(serverLinkExtra),
+                    }
                 );
             }
 
