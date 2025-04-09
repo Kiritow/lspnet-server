@@ -4,6 +4,23 @@ import { parseNodeConfig } from "./utils";
 
 export async function StartLinkController() {}
 
+export async function patchLinkExtraWithTemplateExtra(
+    linkExtra: Record<string, unknown>,
+    templateExtra: Record<string, unknown>
+) {
+    if (templateExtra.ospf !== undefined) {
+        linkExtra.ospf = templateExtra.ospf;
+    }
+    if (templateExtra.multilisten !== undefined) {
+        linkExtra.multilisten = templateExtra.multilisten;
+    }
+    if (templateExtra.multiport !== undefined) {
+        linkExtra.multiport = templateExtra.multiport;
+    }
+
+    return linkExtra;
+}
+
 export async function runLinkController() {
     const allTemplates = await dao.getAllLinkTemplates();
     const allTemplateIds = allTemplates.map((t) => t.id);
@@ -271,12 +288,13 @@ export async function runLinkController() {
             updateSqlParams.length = 0;
             updateSqlParts.length = 0;
 
-            const extraConfigForWGLinks: Record<string, unknown> = {
+            const extraConfigForNewWGLinks: Record<string, unknown> = {
                 templateId,
             };
-            if (extraConfigForTemplate.ospf !== undefined) {
-                extraConfigForWGLinks.ospf = extraConfigForTemplate.ospf;
-            }
+            patchLinkExtraWithTemplateExtra(
+                extraConfigForNewWGLinks,
+                extraConfigForTemplate
+            );
 
             if (updatedTemplate.wgLinkClientId === 0) {
                 // create client link
@@ -293,7 +311,7 @@ export async function runLinkController() {
                     endpointMode: 1,
                     endpointTemplate: `${useConnectIP}:${updatedTemplate.dstListenPort}`,
                     endpoint: `${useConnectIP}:${updatedTemplate.dstListenPort}`,
-                    extra: JSON.stringify(extraConfigForWGLinks),
+                    extra: JSON.stringify(extraConfigForNewWGLinks),
                     status: 1,
                 });
 
@@ -314,9 +332,10 @@ export async function runLinkController() {
                 }
 
                 const clientLinkExtra = JSON.parse(clientLink.extra);
-                if (extraConfigForTemplate.ospf !== undefined) {
-                    clientLinkExtra.ospf = extraConfigForTemplate.ospf;
-                }
+                patchLinkExtraWithTemplateExtra(
+                    clientLinkExtra,
+                    extraConfigForTemplate
+                );
                 await dao._updateWireGuardLink(
                     conn,
                     updatedTemplate.wgLinkClientId,
@@ -338,7 +357,7 @@ export async function runLinkController() {
                     endpointMode: 0,
                     endpointTemplate: "",
                     endpoint: "",
-                    extra: JSON.stringify(extraConfigForWGLinks),
+                    extra: JSON.stringify(extraConfigForNewWGLinks),
                     status: 1,
                 });
 
@@ -359,9 +378,10 @@ export async function runLinkController() {
                 }
 
                 const serverLinkExtra = JSON.parse(serverLink.extra);
-                if (extraConfigForTemplate.ospf !== undefined) {
-                    serverLinkExtra.ospf = extraConfigForTemplate.ospf;
-                }
+                patchLinkExtraWithTemplateExtra(
+                    serverLinkExtra,
+                    extraConfigForTemplate
+                );
                 await dao._updateWireGuardLink(
                     conn,
                     updatedTemplate.wgLinkServerId,
