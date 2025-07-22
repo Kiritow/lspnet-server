@@ -1,10 +1,14 @@
 import koaRouter from "koa-router";
 import { z } from "zod";
 
-import { logger, dao, mustLogin } from "./common";
-import { GetAllValidLinkSubnetsFromCIDR, parseNodeConfig, readableZodError } from "./utils";
+import { dao, mustLogin } from "./common";
+import {
+    GetAllValidLinkSubnetsFromCIDR,
+    parseNodeConfig,
+    readableZodError,
+} from "./utils";
 import { CreateJoinClusterToken } from "./simple-token";
-import { _nodeConfigSchema, NodeConfig } from "./model";
+import { NodeConfig } from "./model";
 import { runLinkController } from "./link-controller";
 
 const router = new koaRouter({
