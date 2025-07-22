@@ -1,3 +1,4 @@
+import dayjs from "dayjs";
 import { BaseConnection, BaseDaoClass } from "./base-dao";
 import {
     _clusterSchema,
@@ -10,6 +11,10 @@ import {
     NodeInfo,
     UserInfo,
 } from "./model";
+
+export function tsToMySQLTime(ts: number): string {
+    return dayjs(ts).format("YYYY-MM-DD HH:mm:ss");
+}
 
 export class DaoClass extends BaseDaoClass {
     async getPlatformUser(platform: string, platformUid: string) {
@@ -157,6 +162,7 @@ export class DaoClass extends BaseDaoClass {
         nodeId: number,
         data: {
             config?: string;
+            lastSeenTs?: number;
         }
     ) {
         const sqlParts: string[] = [];
@@ -165,6 +171,10 @@ export class DaoClass extends BaseDaoClass {
         if (data.config !== undefined) {
             sqlParts.push("f_config=?");
             params.push(data.config);
+        }
+        if (data.lastSeenTs !== undefined) {
+            sqlParts.push("f_last_seen=?");
+            params.push(tsToMySQLTime(data.lastSeenTs));
         }
         if (sqlParts.length < 1) {
             return;

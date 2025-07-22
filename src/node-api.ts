@@ -339,6 +339,11 @@ router.post("/link_telemetry", async (ctx) => {
 
     const { links } = body.data;
 
+    // heartbeat
+    await dao.updateNode(nodeInfo.id, {
+        lastSeenTs: Date.now(),
+    });
+
     const clusterInfo = await dao.getClusterInfo(nodeInfo.clusterId);
     if (clusterInfo === null) {
         ctx.status = 400;
