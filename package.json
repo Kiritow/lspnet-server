@@ -20,6 +20,7 @@
     "@influxdata/influxdb-client": "^1.33.2",
     "axios": "^1.4.0",
     "callsite": "^1.0.0",
+    "dayjs": "^1.11.13",
     "ip-address": "^10.0.1",
     "koa": "^2.14.1",
     "koa-bodyparser": "^4.4.1",
