@@ -16,6 +16,17 @@ export function tsToMySQLTime(ts: number): string {
     return dayjs(ts).format("YYYY-MM-DD HH:mm:ss");
 }
 
+export interface LinkTemplateUpdataParams {
+    srcWgKeyId?: number;
+    dstWgKeyId?: number;
+    wgLinkClientId?: number;
+    wgLinkServerId?: number;
+    dstListenPort?: number;
+    subnetId?: number;
+    extra?: string;
+    ready?: boolean;
+}
+
 export class DaoClass extends BaseDaoClass {
     async getPlatformUser(platform: string, platformUid: string) {
         const result = await this.query(
@@ -277,6 +288,76 @@ export class DaoClass extends BaseDaoClass {
         params.push(linkTemplateId);
 
         await this.run(sql, params);
+    }
+
+    async _updateLinkTemplate(
+        conn: BaseConnection,
+        linkTemplateId: number,
+        data: LinkTemplateUpdataParams,
+        updateTime?: {
+            lastSync?: boolean;
+            lastCheck?: boolean;
+        }
+    ) {
+        const sqlParts: string[] = [];
+        const params: unknown[] = [];
+
+        if (data.srcWgKeyId !== undefined) {
+            sqlParts.push("f_src_wgkey_id=?");
+            params.push(data.srcWgKeyId);
+        }
+
+        if (data.dstWgKeyId !== undefined) {
+            sqlParts.push("f_dst_wgkey_id=?");
+            params.push(data.dstWgKeyId);
+        }
+
+        if (data.wgLinkClientId !== undefined) {
+            sqlParts.push("f_wglink_client_id=?");
+            params.push(data.wgLinkClientId);
+        }
+
+        if (data.wgLinkServerId !== undefined) {
+            sqlParts.push("f_wglink_server_id=?");
+            params.push(data.wgLinkServerId);
+        }
+
+        if (data.dstListenPort !== undefined) {
+            sqlParts.push("f_dst_listen_port=?");
+            params.push(data.dstListenPort);
+        }
+
+        if (data.subnetId !== undefined) {
+            sqlParts.push("f_subnet_id=?");
+            params.push(data.subnetId);
+        }
+
+        if (data.extra !== undefined) {
+            sqlParts.push("f_extra=?");
+            params.push(data.extra);
+        }
+
+        if (data.ready !== undefined) {
+            sqlParts.push("f_ready=?");
+            params.push(data.ready ? 1 : 0);
+        }
+
+        if (updateTime?.lastSync) {
+            sqlParts.push("f_last_sync=now()");
+        }
+
+        if (updateTime?.lastCheck) {
+            sqlParts.push("f_last_check=now()");
+        }
+
+        if (sqlParts.length < 1) {
+            return;
+        }
+
+        const sql = `update t_node_link_template set ${sqlParts.join(",")} where f_id=?`;
+        params.push(linkTemplateId);
+
+        await conn.run(sql, params);
     }
 
     async _lockNodeInfo(conn: BaseConnection, nodeId: number) {

@@ -1,6 +1,7 @@
 import { NodeConfig } from "./model";
 import { dao } from "./common";
 import { parseNodeConfig } from "./utils";
+import { LinkTemplateUpdataParams } from "./dao";
 
 export async function StartLinkController() {}
 
@@ -89,8 +90,7 @@ export async function runLinkController() {
             }
 
             // if template is enabled but not ready, check if we can enable it
-            const updateSqlParts: string[] = [];
-            const updateSqlParams: unknown[] = [];
+            let templateUpdateData: LinkTemplateUpdataParams = {};
 
             const srcNode = await dao._lockNodeInfo(conn, template.srcNodeId);
             if (srcNode === null) {
@@ -146,8 +146,7 @@ export async function runLinkController() {
                 console.log(
                     `Template ${template.id}: Using wireguard key ${keys[0].id} for src node ${template.srcNodeId}`
                 );
-                updateSqlParts.push("f_src_wgkey_id=?");
-                updateSqlParams.push(keys[0].id);
+                templateUpdateData.srcWgKeyId = keys[0].id;
                 await dao._markWireGuardKeyUsed(conn, keys[0].id);
             }
 
@@ -167,8 +166,7 @@ export async function runLinkController() {
                 console.log(
                     `Template ${template.id}: Using wireguard key ${keys[0].id} for dst node ${template.dstNodeId}`
                 );
-                updateSqlParts.push("f_dst_wgkey_id=?");
-                updateSqlParams.push(keys[0].id);
+                templateUpdateData.dstWgKeyId = keys[0].id;
                 await dao._markWireGuardKeyUsed(conn, keys[0].id);
             }
 
@@ -240,8 +238,7 @@ export async function runLinkController() {
                 console.log(
                     `Template: ${template.id}: Chosen server UDP port: ${selectedUDPPort}`
                 );
-                updateSqlParts.push("f_dst_listen_port=?");
-                updateSqlParams.push(selectedUDPPort);
+                templateUpdateData.dstListenPort = selectedUDPPort;
             }
 
             // select a subnet
@@ -261,22 +258,18 @@ export async function runLinkController() {
                     `Template ${template.id}: Using subnet ${subnet.id} (${subnet.subnetCIDR}) from cluster ${dstNode.clusterId}`
                 );
                 await dao._markSubnetUsed(conn, subnet.id);
-                updateSqlParts.push("f_subnet_id=?");
-                updateSqlParams.push(subnet.id);
+                templateUpdateData.subnetId = subnet.id;
             }
 
             // update template extra, if any...
-            updateSqlParts.push("f_extra=?");
-            updateSqlParams.push(JSON.stringify(extraConfigForTemplate));
+            templateUpdateData.extra = JSON.stringify(extraConfigForTemplate);
 
             // if everything is ok, update to db first...
-            if (updateSqlParts.length > 0) {
-                const updateSql = `update t_node_link_template set ${updateSqlParts.join(
-                    ","
-                )} where f_id=?`;
-                updateSqlParams.push(template.id);
-                await conn.run(updateSql, updateSqlParams);
-            }
+            await dao._updateLinkTemplate(
+                conn,
+                template.id,
+                templateUpdateData
+            );
 
             // ... then read back
             const updatedTemplate = await dao._lockLinkTemplate(
@@ -292,8 +285,7 @@ export async function runLinkController() {
             }
 
             // clear and reuse...
-            updateSqlParams.length = 0;
-            updateSqlParts.length = 0;
+            templateUpdateData = {};
 
             if (updatedTemplate.wgLinkClientId === 0) {
                 // create client link
@@ -322,8 +314,7 @@ export async function runLinkController() {
                     status: 1,
                 });
 
-                updateSqlParts.push("f_wglink_client_id=?");
-                updateSqlParams.push(clientLinkId);
+                templateUpdateData.wgLinkClientId = clientLinkId;
             } else {
                 // TODO: update client link.
                 const clientLink = await dao._lockWireGuardLink(
@@ -383,8 +374,7 @@ export async function runLinkController() {
                     status: 1,
                 });
 
-                updateSqlParts.push("f_wglink_server_id=?");
-                updateSqlParams.push(serverLinkId);
+                templateUpdateData.wgLinkServerId = serverLinkId;
             } else {
                 // TODO: update server link.
                 // sync extra
@@ -417,14 +407,19 @@ export async function runLinkController() {
 
             // mark template as ready
             console.log(`Template ${template.id}: Marking as ready`);
-            updateSqlParts.push("f_ready=?");
-            updateSqlParams.push(1);
+            templateUpdateData.ready = true;
 
             // update template
-            const sql = `update t_node_link_template set ${updateSqlParts.join(",")}, f_last_sync=now(), f_last_check=now() where f_id=?`;
-            updateSqlParams.push(template.id);
+            await dao._updateLinkTemplate(
+                conn,
+                template.id,
+                templateUpdateData,
+                {
+                    lastCheck: true,
+                    lastSync: true,
+                }
+            );
 
-            await conn.run(sql, updateSqlParams);
             await conn.commit();
         } catch (e) {
             console.log(e);
