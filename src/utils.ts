@@ -154,7 +154,7 @@ export async function renderRouterTelemetryFromCache() {
         })
     );
 
-    const finalText = `diagraph ospf {
+    const finalText = `digraph ospf {
 ${allTexts.join("\n")}
 }`;
 
