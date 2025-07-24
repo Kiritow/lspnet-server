@@ -147,9 +147,9 @@ export async function renderRouterTelemetryFromCache() {
                 ? `${value.dst}(${(await dao.getNodeInfoById(routerIdMapCache.get(value.dst)!))?.nodeName})`
                 : value.dst;
             if (value.single) {
-                return `"${srcLabel}" -> "${dstLabel}" [label="${value.cost}"]`;
+                return `"${srcLabel}" -> "${dstLabel}" [label="${value.cost}"];`;
             } else {
-                return `"${srcLabel}" -> "${dstLabel}" [label="${value.cost}",dir=none]`;
+                return `"${srcLabel}" -> "${dstLabel}" [label="${value.cost}",dir=none];`;
             }
         })
     );
