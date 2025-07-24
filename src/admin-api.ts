@@ -165,9 +165,8 @@ router.get("/cluster/topology", async (ctx) => {
     }
 
     const topology = await renderRouterTelemetryFromCache();
-    ctx.body = {
-        topology,
-    };
+    ctx.set("Content-Type", "image/png");
+    ctx.body = topology;
 });
 
 router.get("/node/list", async (ctx) => {

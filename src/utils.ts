@@ -169,18 +169,18 @@ ${allTexts.join("\n")}
 }`;
 
     const tempFilename = `/tmp/ospf-diagram-${Date.now()}.dot`;
-    const svgFilename = `/tmp/ospf-diagram-${Date.now()}.svg`;
+    const svgFilename = `/tmp/ospf-diagram-${Date.now()}.png`;
     await fs.writeFile(tempFilename, finalText);
     await RunCommand([
         "dot",
         "-Ksfdp",
-        "-Tsvg",
+        "-Tpng",
         tempFilename,
         "-o",
         svgFilename,
     ]);
     await fs.unlink(tempFilename);
-    const svgContent = await fs.readFile(svgFilename, "utf-8");
+    const svgContent = await fs.readFile(svgFilename);
     await fs.unlink(svgFilename);
     return svgContent;
 }
