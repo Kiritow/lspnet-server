@@ -136,15 +136,25 @@ export async function renderRouterTelemetryFromCache() {
                 });
             }
         }
+
+        for (const externalRouter of router.xrouters) {
+            const key = `${router.router_id}-${externalRouter.router_id}`;
+            viewMap.set(key, {
+                src: router.router_id,
+                dst: externalRouter.router_id,
+                single: true,
+                cost: externalRouter.metric,
+            });
+        }
     }
 
     const allTexts = await Promise.all(
         Array.from(viewMap.values()).map(async (value) => {
             const srcLabel = routerIdMapCache.has(value.src)
-                ? `${value.src}(${(await dao.getNodeInfoById(routerIdMapCache.get(value.src)!))?.nodeName})`
+                ? `${(await dao.getNodeInfoById(routerIdMapCache.get(value.src)!))?.nodeName} (${value.src})`
                 : value.src;
             const dstLabel = routerIdMapCache.has(value.dst)
-                ? `${value.dst}(${(await dao.getNodeInfoById(routerIdMapCache.get(value.dst)!))?.nodeName})`
+                ? `${(await dao.getNodeInfoById(routerIdMapCache.get(value.dst)!))?.nodeName} (${value.dst})`
                 : value.dst;
             if (value.single) {
                 return `"${srcLabel}" -> "${dstLabel}" [label="${value.cost}"];`;
