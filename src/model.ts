@@ -317,7 +317,7 @@ const _nodeInnerNetworkInfoSchema = z.object({
 const _nodeExternalNetworkInfoSchema = z.object({
     network: z.string(),
     metric: z.number(),
-    metric_type: z.string(),
+    metric_type: z.number(),
     via: z.string().optional().nullable(),
     tag: z.string().optional().nullable(),
 });
