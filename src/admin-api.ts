@@ -6,6 +6,7 @@ import {
     GetAllValidLinkSubnetsFromCIDR,
     parseNodeConfig,
     readableZodError,
+    renderRouterTelemetryFromCache,
 } from "./utils";
 import { CreateJoinClusterToken } from "./simple-token";
 import { NodeConfig } from "./model";
@@ -135,6 +136,37 @@ router.post("/cluster/create_join_token", async (ctx) => {
     const token = CreateJoinClusterToken(clusterId, userInfo.id);
     ctx.body = {
         token,
+    };
+});
+
+router.get("/cluster/topology", async (ctx) => {
+    const userInfo = await mustLogin(ctx);
+    if (!userInfo) return;
+
+    const query = z
+        .object({
+            id: z.coerce.number(),
+        })
+        .safeParse(ctx.query);
+
+    if (!query.success) {
+        ctx.status = 400;
+        ctx.body = readableZodError(query.error);
+        return;
+    }
+
+    const { id: clusterId } = query.data;
+
+    const userRole = await dao.getUserRole(userInfo.id, clusterId);
+    if (userRole === null) {
+        ctx.status = 403;
+        ctx.body = "You do not have permission to access this cluster";
+        return;
+    }
+
+    const topology = await renderRouterTelemetryFromCache();
+    ctx.body = {
+        topology,
     };
 });
 

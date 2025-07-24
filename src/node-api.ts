@@ -6,11 +6,13 @@ import z from "zod";
 import { dao, influxWriteAPI } from "./common";
 import { CheckJoinClusterToken } from "./simple-token";
 import { ClientKeyWrapper } from "./client-pki";
-import { NodeInfo } from "./model";
+import { _nodeRouterInfoSchema, NodeInfo } from "./model";
 import {
     GetAllAddressFromLinkNetworkCIDR,
     parseNodeConfig,
     readableZodError,
+    routerIdMapCache,
+    routerTelemetryCache,
 } from "./utils";
 import {
     WGLINK_ENDPOINT_MODE_CLIENT_RESOLVE,
@@ -426,6 +428,54 @@ router.post("/link_telemetry", async (ctx) => {
     );
 
     await influxWriteAPI.flush();
+
+    ctx.body = {
+        message: "OK",
+    };
+});
+
+router.post("/router_telemetry", async (ctx) => {
+    const nodeInfo = await mustVerifyClient(ctx);
+    if (nodeInfo === null) return;
+
+    const body = z
+        .object({
+            area_routers: z.record(z.string(), _nodeRouterInfoSchema.array()),
+            other_asbrs: _nodeRouterInfoSchema.array(),
+        })
+        .safeParse(ctx.request.body);
+
+    if (!body.success) {
+        ctx.status = 400;
+        ctx.body = readableZodError(body.error);
+        return;
+    }
+
+    const { area_routers: areaRouters, other_asbrs: otherAsbrs } = body.data;
+
+    // get OSPF router id of this node
+    const backboneRouters = areaRouters["0.0.0.0"];
+    if (backboneRouters === undefined) {
+        console.log(`No backbone routers found for node: ${nodeInfo.id}`);
+        ctx.status = 400;
+        ctx.body = `No backbone routers found`;
+        return;
+    }
+
+    const currentRouter = backboneRouters.find(
+        (router) => router.distance === 0
+    );
+    if (currentRouter === undefined) {
+        console.log(`No current router found for node: ${nodeInfo.id}`);
+        ctx.status = 400;
+        ctx.body = `No current router found`;
+        return;
+    }
+
+    routerIdMapCache.set(currentRouter.router_id, nodeInfo.id);
+
+    routerTelemetryCache.areaRouters = areaRouters;
+    routerTelemetryCache.otherAsbrs = otherAsbrs;
 
     ctx.body = {
         message: "OK",

@@ -303,3 +303,35 @@ export const _nodeEventSchema = z
     });
 
 export type NodeEvent = z.infer<typeof _nodeEventSchema>;
+
+const _nodeInnerRouterInfoSchema = z.object({
+    router_id: z.string(),
+    metric: z.number(),
+});
+
+const _nodeInnerNetworkInfoSchema = z.object({
+    network: z.string(),
+    metric: z.number(),
+});
+
+const _nodeExternalNetworkInfoSchema = z.object({
+    network: z.string(),
+    metric: z.number(),
+    metric_type: z.string(),
+    via: z.string().optional().nullable(),
+    tag: z.string().optional().nullable(),
+});
+
+export const _nodeRouterInfoSchema = z.object({
+    router_id: z.string(),
+    distance: z.number(),
+    vlinks: _nodeInnerRouterInfoSchema.array(),
+    routers: _nodeInnerRouterInfoSchema.array(),
+    stubnets: _nodeInnerNetworkInfoSchema.array(),
+    xnetworks: _nodeInnerNetworkInfoSchema.array(),
+    xrouters: _nodeInnerRouterInfoSchema.array(),
+    externals: _nodeExternalNetworkInfoSchema.array(),
+    nssa_externals: _nodeExternalNetworkInfoSchema.array(),
+});
+
+export type NodeRouterInfo = z.infer<typeof _nodeRouterInfoSchema>;

@@ -1,8 +1,11 @@
 import assert from "assert";
 import { Address4 } from "ip-address";
 import z from "zod";
+import fs from "fs/promises";
+import { spawn } from "node:child_process";
 
-import { _nodeConfigSchema } from "./model";
+import { _nodeConfigSchema, NodeRouterInfo } from "./model";
+import { dao } from "./common";
 
 export function readableZodError<T>(err: z.ZodError<T>): string {
     return err.errors
@@ -19,6 +22,18 @@ export function readableZodError<T>(err: z.ZodError<T>): string {
             return `${readablePath}: ${e.message}`;
         })
         .join("; ");
+}
+
+export function RunCommand(callArgs: string[]): Promise<number> {
+    return new Promise((resolve, reject) => {
+        const child = spawn(callArgs[0], callArgs.slice(1));
+        child.on("exit", (code) => {
+            if (code == 0) return resolve(code);
+            return reject(code);
+        });
+        child.stdout.on("data", (data) => console.log(data.toString()));
+        child.stderr.on("data", (data) => console.error(data.toString()));
+    });
 }
 
 export function GetAllAddressFromLinkNetworkCIDR(networkCIDR: string) {
@@ -82,4 +97,80 @@ export function parseNodeConfig(rawConfig: string) {
             cause: e,
         });
     }
+}
+
+// routerId (ospf) --> nodeInfo.id
+export const routerIdMapCache = new Map<string, number>();
+export const routerTelemetryCache: {
+    areaRouters: Record<string, NodeRouterInfo[]>;
+    otherAsbrs: NodeRouterInfo[];
+} = {
+    areaRouters: {},
+    otherAsbrs: [],
+};
+
+export async function renderRouterTelemetryFromCache() {
+    const backboneRouters = routerTelemetryCache.areaRouters["0.0.0.0"];
+    assert(backboneRouters !== undefined, "no backbone routers found");
+
+    const viewMap = new Map<
+        string,
+        { src: string; dst: string; single: boolean; cost: number }
+    >();
+    for (const router of backboneRouters) {
+        for (const neighbor of router.routers) {
+            const key = `${router.router_id}-${neighbor.router_id}`;
+            const rkey = `${neighbor.router_id}-${router.router_id}`;
+
+            if (
+                viewMap.has(rkey) &&
+                viewMap.get(rkey)!.cost === neighbor.metric
+            ) {
+                viewMap.get(rkey)!.single = false;
+            } else {
+                viewMap.set(key, {
+                    src: router.router_id,
+                    dst: neighbor.router_id,
+                    single: true,
+                    cost: neighbor.metric,
+                });
+            }
+        }
+    }
+
+    const allTexts = await Promise.all(
+        Array.from(viewMap.values()).map(async (value) => {
+            const srcLabel = routerIdMapCache.has(value.src)
+                ? `${value.src}(${(await dao.getNodeInfoById(routerIdMapCache.get(value.src)!))?.nodeName})`
+                : value.src;
+            const dstLabel = routerIdMapCache.has(value.dst)
+                ? `${value.dst}(${(await dao.getNodeInfoById(routerIdMapCache.get(value.dst)!))?.nodeName})`
+                : value.dst;
+            if (value.single) {
+                return `"${srcLabel}" -> "${dstLabel}" [label="${value.cost}"]`;
+            } else {
+                return `"${srcLabel}" -> "${dstLabel}" [label="${value.cost}",dir=none]`;
+            }
+        })
+    );
+
+    const finalText = `diagraph ospf {
+${allTexts.join("\n")}
+}`;
+
+    const tempFilename = `/tmp/ospf-diagram-${Date.now()}.dot`;
+    const svgFilename = `/tmp/ospf-diagram-${Date.now()}.svg`;
+    await fs.writeFile(tempFilename, finalText);
+    await RunCommand([
+        "dot",
+        "-Ksfdp",
+        "-Tsvg",
+        tempFilename,
+        "-o",
+        svgFilename,
+    ]);
+    await fs.unlink(tempFilename);
+    const svgContent = await fs.readFile(svgFilename, "utf-8");
+    await fs.unlink(svgFilename);
+    return svgContent;
 }
