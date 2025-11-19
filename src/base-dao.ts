@@ -179,10 +179,6 @@ export class BaseConnection extends QueryMethods<BaseConnection> {
         });
     }
 
-    release() {
-        this.conn.release();
-    }
-
     finish() {
         this.rollback()
             .then(() => this.conn.release())
