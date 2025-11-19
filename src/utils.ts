@@ -4,8 +4,16 @@ import z from "zod";
 import fs from "fs/promises";
 import { spawn } from "node:child_process";
 
-import { _nodeConfigSchema, NodeRouterInfo } from "./model";
+import {
+    _linkTemplateExtraSchema,
+    _nodeConfigSchema,
+    NodeRouterInfo,
+} from "./model";
 import { dao } from "./common";
+
+export function isZodError(e: unknown): e is z.ZodError {
+    return e instanceof z.ZodError;
+}
 
 export function readableZodError<T>(err: z.ZodError<T>): string {
     return err.errors
@@ -94,6 +102,24 @@ export function parseNodeConfig(rawConfig: string) {
                   : `${e}`;
 
         throw new Error(`parse node config error: ${errorMessage}`, {
+            cause: e,
+        });
+    }
+}
+
+export function parseLinkTemplateExtra(extra: string) {
+    try {
+        const jExtra = JSON.parse(extra);
+        return _linkTemplateExtraSchema.parse(jExtra);
+    } catch (e) {
+        const errorMessage =
+            e instanceof z.ZodError
+                ? readableZodError(e)
+                : e instanceof Error
+                  ? e.message
+                  : `${e}`;
+
+        throw new Error(`parse link template extra error: ${errorMessage}`, {
             cause: e,
         });
     }

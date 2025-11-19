@@ -47,5 +47,6 @@ app.use(adminRouter.routes()).use(adminRouter.allowedMethods());
 app.use(nodeRouter.routes()).use(nodeRouter.allowedMethods());
 app.use(router.routes()).use(router.allowedMethods());
 
-app.listen(6666);
-logger.info("Server started on port 6666");
+const LISTEN_PORT = parseInt(process.env.LISTEN_PORT ?? "6666");
+app.listen(LISTEN_PORT);
+logger.info(`Server started on port ${LISTEN_PORT}`);
