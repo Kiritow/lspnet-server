@@ -1,29 +1,115 @@
-import { NodeConfig } from "./model";
+import { LinkExtraInfo, LinkTemplateExtraInfo, NodeConfig } from "./model";
 import { dao } from "./common";
-import { parseNodeConfig } from "./utils";
+import { parseLinkTemplateExtra, parseNodeConfig } from "./utils";
 import { LinkTemplateUpdataParams } from "./dao";
+import assert from "assert";
 
 export async function StartLinkController() {}
 
-export function patchLinkExtraWithTemplateExtra(
-    linkExtra: Record<string, unknown>,
-    templateExtra: Record<string, unknown>,
-    patchMode: "client" | "server"
+function createLinkExtraAsClient(
+    cdata: Map<string, unknown>,
+    templateExtra: LinkTemplateExtraInfo
 ) {
-    if (templateExtra.ospf !== undefined) {
-        linkExtra.ospf = templateExtra.ospf;
+    const templateId = cdata.get("template_id") as number;
+    assert(templateId !== undefined);
+
+    const linkExtra: LinkExtraInfo = {
+        templateId,
+        ospf: {
+            cost: templateExtra.ospf.cost,
+            offset: templateExtra.ospf.offset,
+            ping: templateExtra.ospf.ping,
+            auth: templateExtra.ospf.auth,
+        },
+    };
+
+    if (templateExtra.ospf.offset_client !== undefined) {
+        linkExtra.ospf.offset = templateExtra.ospf.offset_client;
     }
 
-    if (patchMode === "server") {
-        if (templateExtra.multilisten !== undefined) {
-            linkExtra.multilisten = templateExtra.multilisten;
-        }
+    if (templateExtra.multiport !== undefined) {
+        linkExtra.multiport = templateExtra.multiport;
     }
 
-    if (patchMode === "client") {
-        if (templateExtra.multiport !== undefined) {
-            linkExtra.multiport = templateExtra.multiport;
-        }
+    if (templateExtra.underlay !== undefined) {
+        assert(templateExtra.underlay.provider === "gost");
+        const gostRelayUsername =
+            (cdata.get("gost_relay_username") as string) ??
+            `${crypto.randomUUID()}`;
+        cdata.set("gost_relay_username", gostRelayUsername);
+        const gostRelayPassword =
+            (cdata.get("gost_relay_password") as string) ??
+            `${crypto.randomUUID()}`;
+        cdata.set("gost_relay_password", gostRelayPassword);
+
+        linkExtra.underlay = {
+            provider: "gost_relay_client",
+            config_gost_relay_client: {
+                listen_port: templateExtra.underlay.config.client_port,
+                server_addr: "",
+                server_port: templateExtra.underlay.config.server_port,
+                username: templateExtra.underlay.config.enable_auth
+                    ? gostRelayUsername
+                    : undefined,
+                password: templateExtra.underlay.config.enable_auth
+                    ? gostRelayPassword
+                    : undefined,
+            },
+        };
+    }
+
+    return linkExtra;
+}
+
+function createLinkExtraAsServer(
+    cdata: Map<string, unknown>,
+    templateExtra: LinkTemplateExtraInfo
+) {
+    const templateId = cdata.get("template_id") as number;
+    assert(templateId !== undefined);
+
+    const linkExtra: LinkExtraInfo = {
+        templateId,
+        ospf: {
+            cost: templateExtra.ospf.cost,
+            offset: templateExtra.ospf.offset,
+            ping: templateExtra.ospf.ping,
+            auth: templateExtra.ospf.auth,
+        },
+    };
+
+    // In Server Mode
+    if (templateExtra.ospf.offset_server !== undefined) {
+        linkExtra.ospf.offset = templateExtra.ospf.offset_server;
+    }
+
+    if (templateExtra.multilisten !== undefined) {
+        linkExtra.multilisten = templateExtra.multilisten;
+    }
+
+    if (templateExtra.underlay !== undefined) {
+        assert(templateExtra.underlay.provider === "gost");
+        const gostRelayUsername =
+            (cdata.get("gost_relay_username") as string) ??
+            `${crypto.randomUUID()}`;
+        cdata.set("gost_relay_username", gostRelayUsername);
+        const gostRelayPassword =
+            (cdata.get("gost_relay_password") as string) ??
+            `${crypto.randomUUID()}`;
+        cdata.set("gost_relay_password", gostRelayPassword);
+
+        linkExtra.underlay = {
+            provider: "gost_relay_server",
+            config_gost_relay_server: {
+                listen_port: templateExtra.underlay.config.server_port,
+                username: templateExtra.underlay.config.enable_auth
+                    ? gostRelayUsername
+                    : undefined,
+                password: templateExtra.underlay.config.enable_auth
+                    ? gostRelayPassword
+                    : undefined,
+            },
+        };
     }
 
     return linkExtra;
@@ -90,7 +176,7 @@ export async function runLinkController() {
             }
 
             // if template is enabled but not ready, check if we can enable it
-            let templateUpdateData: LinkTemplateUpdataParams = {};
+            let templateUpdateParams: LinkTemplateUpdataParams = {};
 
             const srcNode = await dao._lockNodeInfo(conn, template.srcNodeId);
             if (srcNode === null) {
@@ -146,7 +232,7 @@ export async function runLinkController() {
                 console.log(
                     `Template ${template.id}: Using wireguard key ${keys[0].id} for src node ${template.srcNodeId}`
                 );
-                templateUpdateData.srcWgKeyId = keys[0].id;
+                templateUpdateParams.srcWgKeyId = keys[0].id;
                 await dao._markWireGuardKeyUsed(conn, keys[0].id);
             }
 
@@ -166,13 +252,19 @@ export async function runLinkController() {
                 console.log(
                     `Template ${template.id}: Using wireguard key ${keys[0].id} for dst node ${template.dstNodeId}`
                 );
-                templateUpdateData.dstWgKeyId = keys[0].id;
+                templateUpdateParams.dstWgKeyId = keys[0].id;
                 await dao._markWireGuardKeyUsed(conn, keys[0].id);
             }
 
-            const extraConfigForTemplate: Record<string, unknown> = JSON.parse(
-                template.extra
-            );
+            let templateExtra: LinkTemplateExtraInfo;
+            try {
+                templateExtra = parseLinkTemplateExtra(template.extra);
+            } catch (e) {
+                console.error(
+                    `Template ${template.id}: Template extra is invalid: ${e instanceof Error ? e.message : e}`
+                );
+                continue;
+            }
 
             // check destination IP
             let useConnectIP: string;
@@ -184,8 +276,8 @@ export async function runLinkController() {
                         `Template ${template.id}: Choose IP from dst node: ${dstNodeConfig.ip}`
                     );
 
-                    extraConfigForTemplate.endpointMode = 1; // resolve at client side, whether it's DDNS or not.
-                    extraConfigForTemplate.endpointHost = dstNodeConfig.ip;
+                    templateExtra.endpointMode = 1; // resolve at client side, whether it's DDNS or not.
+                    templateExtra.endpointHost = dstNodeConfig.ip;
                     useConnectIP = dstNodeConfig.ip;
                 } else {
                     console.log(
@@ -238,7 +330,7 @@ export async function runLinkController() {
                 console.log(
                     `Template: ${template.id}: Chosen server UDP port: ${selectedUDPPort}`
                 );
-                templateUpdateData.dstListenPort = selectedUDPPort;
+                templateUpdateParams.dstListenPort = selectedUDPPort;
             }
 
             // select a subnet
@@ -258,17 +350,17 @@ export async function runLinkController() {
                     `Template ${template.id}: Using subnet ${subnet.id} (${subnet.subnetCIDR}) from cluster ${dstNode.clusterId}`
                 );
                 await dao._markSubnetUsed(conn, subnet.id);
-                templateUpdateData.subnetId = subnet.id;
+                templateUpdateParams.subnetId = subnet.id;
             }
 
             // update template extra, if any...
-            templateUpdateData.extra = JSON.stringify(extraConfigForTemplate);
+            templateUpdateParams.extra = JSON.stringify(templateExtra);
 
             // if everything is ok, update to db first...
             await dao._updateLinkTemplate(
                 conn,
                 template.id,
-                templateUpdateData
+                templateUpdateParams
             );
 
             // ... then read back
@@ -285,7 +377,9 @@ export async function runLinkController() {
             }
 
             // clear and reuse...
-            templateUpdateData = {};
+            templateUpdateParams = {};
+            const cdata = new Map();
+            cdata.set("template_id", templateId);
 
             if (updatedTemplate.wgLinkClientId === 0) {
                 // create client link
@@ -303,18 +397,12 @@ export async function runLinkController() {
                     endpointTemplate: `${useConnectIP}:${updatedTemplate.dstListenPort}`,
                     endpoint: `${useConnectIP}:${updatedTemplate.dstListenPort}`,
                     extra: JSON.stringify(
-                        patchLinkExtraWithTemplateExtra(
-                            {
-                                templateId,
-                            },
-                            extraConfigForTemplate,
-                            "client"
-                        )
+                        createLinkExtraAsClient(cdata, templateExtra)
                     ),
                     status: 1,
                 });
 
-                templateUpdateData.wgLinkClientId = clientLinkId;
+                templateUpdateParams.wgLinkClientId = clientLinkId;
             } else {
                 // TODO: update client link.
                 const clientLink = await dao._lockWireGuardLink(
@@ -329,12 +417,6 @@ export async function runLinkController() {
                 }
 
                 // sync listen port, endpoint, extra
-                const clientLinkExtra = patchLinkExtraWithTemplateExtra(
-                    JSON.parse(clientLink.extra),
-                    extraConfigForTemplate,
-                    "client"
-                );
-
                 await dao._updateWireGuardLink(
                     conn,
                     updatedTemplate.wgLinkClientId,
@@ -343,7 +425,9 @@ export async function runLinkController() {
                         endpointMode: 1,
                         endpointTemplate: `${useConnectIP}:${updatedTemplate.dstListenPort}`,
                         endpoint: `${useConnectIP}:${updatedTemplate.dstListenPort}`,
-                        extra: JSON.stringify(clientLinkExtra),
+                        extra: JSON.stringify(
+                            createLinkExtraAsClient(cdata, templateExtra)
+                        ),
                     }
                 );
             }
@@ -363,18 +447,12 @@ export async function runLinkController() {
                     endpointTemplate: "",
                     endpoint: "",
                     extra: JSON.stringify(
-                        patchLinkExtraWithTemplateExtra(
-                            {
-                                templateId,
-                            },
-                            extraConfigForTemplate,
-                            "server"
-                        )
+                        createLinkExtraAsServer(cdata, templateExtra)
                     ),
                     status: 1,
                 });
 
-                templateUpdateData.wgLinkServerId = serverLinkId;
+                templateUpdateParams.wgLinkServerId = serverLinkId;
             } else {
                 // TODO: update server link.
                 // sync extra
@@ -389,31 +467,27 @@ export async function runLinkController() {
                     continue;
                 }
 
-                const serverLinkExtra = patchLinkExtraWithTemplateExtra(
-                    JSON.parse(serverLink.extra),
-                    extraConfigForTemplate,
-                    "server"
-                );
-
                 await dao._updateWireGuardLink(
                     conn,
                     updatedTemplate.wgLinkServerId,
                     {
                         listenPort: updatedTemplate.dstListenPort,
-                        extra: JSON.stringify(serverLinkExtra),
+                        extra: JSON.stringify(
+                            createLinkExtraAsServer(cdata, templateExtra)
+                        ),
                     }
                 );
             }
 
             // mark template as ready
             console.log(`Template ${template.id}: Marking as ready`);
-            templateUpdateData.ready = true;
+            templateUpdateParams.ready = true;
 
             // update template
             await dao._updateLinkTemplate(
                 conn,
                 template.id,
-                templateUpdateData,
+                templateUpdateParams,
                 {
                     lastCheck: true,
                     lastSync: true,

@@ -4,12 +4,13 @@ import { z } from "zod";
 import { dao, mustLogin } from "./common";
 import {
     GetAllValidLinkSubnetsFromCIDR,
+    parseLinkTemplateExtra,
     parseNodeConfig,
     readableZodError,
     renderRouterTelemetryFromCache,
 } from "./utils";
 import { CreateJoinClusterToken } from "./simple-token";
-import { NodeConfig } from "./model";
+import { LinkTemplateExtraInfo, NodeConfig } from "./model";
 import { runLinkController } from "./link-controller";
 
 const router = new koaRouter({
@@ -363,18 +364,15 @@ router.post("/link/create", async (ctx) => {
         return;
     }
 
-    const extraInfo = {
-        createUserId: userInfo.id,
-    };
+    let extraInfo: LinkTemplateExtraInfo | undefined = undefined;
     if (extra !== undefined) {
         try {
-            const jExtra = JSON.parse(extra);
-            Object.assign(extraInfo, jExtra);
+            extraInfo = parseLinkTemplateExtra(extra);
         } catch (e) {
-            console.log(e);
+            console.error(e);
 
             ctx.status = 400;
-            ctx.body = "Invalid extra info";
+            ctx.body = `Invalid extra info: ${e}`;
             return;
         }
     }
@@ -384,7 +382,7 @@ router.post("/link/create", async (ctx) => {
         dstNodeId,
         connectIP: dstIP,
         dstPort,
-        extra: JSON.stringify(extraInfo),
+        extra: JSON.stringify({ ...extraInfo, createUserId: userInfo.id }),
     });
 
     ctx.body = {
@@ -447,15 +445,15 @@ router.post("/link/update", async (ctx) => {
         return;
     }
 
+    let extraInfo: LinkTemplateExtraInfo | undefined = undefined;
     if (extra !== undefined) {
         try {
-            const jExtra = JSON.parse(extra);
-            Object.assign(linkTemplate.extra, jExtra);
+            extraInfo = parseLinkTemplateExtra(extra);
         } catch (e) {
-            console.log(e);
+            console.error(e);
 
             ctx.status = 400;
-            ctx.body = "Invalid extra info";
+            ctx.body = `Invalid extra info: ${e}`;
             return;
         }
     }
@@ -463,7 +461,7 @@ router.post("/link/update", async (ctx) => {
     await dao.updateLinkTemplate(linkId, {
         connectIP,
         dstPort,
-        extra,
+        extra: JSON.stringify({ ...extraInfo, createUserId: userInfo.id }),
     });
 
     ctx.body = {

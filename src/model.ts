@@ -335,3 +335,62 @@ export const _nodeRouterInfoSchema = z.object({
 });
 
 export type NodeRouterInfo = z.infer<typeof _nodeRouterInfoSchema>;
+
+export const _underlayConfigSchema = z.object({
+    provider: z.literal("gost"),
+    config: z.object({
+        client_port: z.number(),
+        server_port: z.number(),
+        enable_auth: z.boolean().optional(), // default is false. if true, an username and password will be generated.
+    }),
+});
+
+export const _linkTemplateExtraSchema = z.object({
+    ospf: z.object({
+        cost: z.number(),
+        ping: z.boolean(),
+        offset: z.number(),
+        auth: z.string().optional(),
+        offset_client: z.number().optional(),
+        offset_server: z.number().optional(),
+    }),
+    multilisten: z.array(z.number()).optional(),
+    multiport: z.array(z.number()).optional(),
+    underlay: _underlayConfigSchema.optional(),
+});
+
+export type LinkTemplateExtraInfo = z.infer<typeof _linkTemplateExtraSchema> & {
+    endpointMode?: number;
+    endpointHost?: string;
+};
+
+export interface LinkExtraInfo {
+    templateId: number;
+    ospf: {
+        cost: number;
+        ping: boolean;
+        offset: number;
+        auth?: string;
+    };
+
+    endpointMode?: number;
+    endpointHost?: string;
+
+    multilisten?: number[];
+    multiport?: number[];
+    underlay?: {
+        provider: "gost_relay_client" | "gost_relay_server";
+        config_gost_relay_client?: {
+            listen_port: number;
+            server_addr: string;
+            server_port: number;
+            username?: string;
+            password?: string;
+        };
+        config_gost_relay_server?: {
+            listen_port: number;
+            username?: string;
+            password?: string;
+        };
+    };
+}
