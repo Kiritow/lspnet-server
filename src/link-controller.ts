@@ -198,6 +198,7 @@ export async function runLinkController() {
             // check if node have configs
             let srcNodeConfig: NodeConfig;
             try {
+                // eslint-disable-next-line @typescript-eslint/no-unused-vars
                 srcNodeConfig = parseNodeConfig(srcNode.config);
             } catch (e) {
                 console.log(

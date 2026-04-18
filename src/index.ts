@@ -1,4 +1,3 @@
-import "source-map-support/register";
 import koa from "koa";
 import koaBodyParser from "koa-bodyparser";
 import koaJSON from "koa-json";

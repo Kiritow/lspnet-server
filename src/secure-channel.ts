@@ -249,7 +249,7 @@ class SecureSessionMemoryStore implements SecureSessionStore {
     }
 
     async push(session: SecureSession): Promise<number> {
-        let cid: number = 0;
+        let cid: number;
         for (;;) {
             cid = Math.floor(Math.random() * Number.MAX_SAFE_INTEGER);
             if (cid !== 0 && !this.sessions.has(cid)) {
