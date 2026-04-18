@@ -28,16 +28,16 @@ export const influxWriteAPI = new InfluxAPI(
 );
 
 export async function getWebUser(ctx: Context) {
-    if (ctx.session == null) {
+    if (ctx.session === null) {
         return null;
     }
 
-    if (ctx.session.isNew || ctx.session.uid == null || ctx.session.uid <= 0) {
+    if (ctx.session.isNew || ctx.session.uid === null || ctx.session.uid <= 0) {
         return null;
     }
 
     const accountInfo = await dao.getUserByID(ctx.session.uid);
-    if (accountInfo == null) {
+    if (accountInfo === null) {
         logger.warn(`invalid uid: ${ctx.session.uid}`);
         return null;
     }

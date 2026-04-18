@@ -40,7 +40,7 @@ async function GetGithubAccessToken(
                 code,
             }),
         });
-        if (res.status != 200) {
+        if (res.status !== 200) {
             return null;
         }
 
@@ -69,7 +69,7 @@ async function LoadGithubProfile(
                 Authorization: `${accessToken.type} ${accessToken.token}`,
             },
         });
-        if (res.status != 200) {
+        if (res.status !== 200) {
             return null;
         }
 
@@ -81,7 +81,7 @@ async function LoadGithubProfile(
             })
             .parse(resData);
 
-        if (githubUserID == null || githubUserID.length < 1) {
+        if (githubUserID.length < 1) {
             return null;
         }
 
@@ -146,7 +146,7 @@ router.get("/login/github/callback", async (ctx) => {
     const accountInfo = await dao.getPlatformUser("github", userProfile.userid);
 
     let userId: number;
-    if (accountInfo == null) {
+    if (accountInfo === null) {
         // create new user
         const newUserId = await dao.createUser(
             "github",

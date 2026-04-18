@@ -23,13 +23,13 @@ export function CreateJoinClusterToken(
 
 export function CheckJoinClusterToken(token: string) {
     const tokenInfo = CheckServiceToken(token);
-    if (tokenInfo != null) {
+    if (tokenInfo !== null) {
         const parseResult = _joinClusterTokenSchema.safeParse(tokenInfo.data);
         if (!parseResult.success) {
             return null;
         }
         const tokenData = parseResult.data;
-        if (tokenData.type == "join") {
+        if (tokenData.type === "join") {
             return tokenData;
         }
     }

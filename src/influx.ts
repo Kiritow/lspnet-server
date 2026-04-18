@@ -13,9 +13,9 @@ export class InfluxAPI {
         await this.writeClient.flush();
     }
 
-    writeInt(measure: string, value: number, tags: { [key: string]: string }) {
+    writeInt(measure: string, value: number, tags?: { [key: string]: string }) {
         const p = new Point(measure).intField("value", value);
-        if (tags != null) {
+        if (tags !== undefined) {
             Object.keys(tags).forEach((k) => p.tag(k, tags[k]));
         }
         console.log(p);
@@ -25,11 +25,11 @@ export class InfluxAPI {
     writeMultiInt(
         measure: string,
         values: { [key: string]: number },
-        tags: { [key: string]: string }
+        tags?: { [key: string]: string }
     ) {
         const p = new Point(measure);
         Object.keys(values).forEach((k) => p.intField(k, values[k]));
-        if (tags != null) {
+        if (tags !== undefined) {
             Object.keys(tags).forEach((k) => p.tag(k, tags[k]));
         }
         console.log(p);

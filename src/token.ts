@@ -44,7 +44,7 @@ export function CheckServiceToken(
 ): ServiceTokenDataBase | null {
     try {
         const parts = token.split(".");
-        if (parts.length != 4) {
+        if (parts.length !== 4) {
             console.log(`invalid or malformed token: ${token}`);
             return null;
         }

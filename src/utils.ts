@@ -36,7 +36,7 @@ export function RunCommand(callArgs: string[]): Promise<number> {
     return new Promise((resolve, reject) => {
         const child = spawn(callArgs[0], callArgs.slice(1));
         child.on("exit", (code) => {
-            if (code == 0) return resolve(code);
+            if (code === 0) return resolve(code);
             return reject(code);
         });
         child.stdout.on("data", (data) => console.log(data.toString()));
@@ -47,7 +47,7 @@ export function RunCommand(callArgs: string[]): Promise<number> {
 export function GetAllAddressFromLinkNetworkCIDR(networkCIDR: string) {
     const addr = new Address4(networkCIDR);
     assert(
-        addr.subnetMask == 30,
+        addr.subnetMask === 30,
         `Invalid LinkCIDR ${networkCIDR} with subnet mask: ${addr.subnetMask}`
     );
 

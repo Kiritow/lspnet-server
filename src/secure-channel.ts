@@ -11,8 +11,8 @@ export function getPublicKeyHash(publicKey: crypto.KeyObject): Buffer {
 export function getPublicKeyRaw(publicKey: crypto.KeyObject): Buffer {
     assert(
         publicKey.type === "public" &&
-            (publicKey.asymmetricKeyType == "x25519" ||
-                publicKey.asymmetricKeyType == "ed25519"),
+            (publicKey.asymmetricKeyType === "x25519" ||
+                publicKey.asymmetricKeyType === "ed25519"),
         "unsupported key type"
     );
 
