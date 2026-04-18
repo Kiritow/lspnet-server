@@ -1,19 +1,30 @@
 {
     "compilerOptions": {
-        "module": "commonjs",
+        "module": "nodenext",
         "esModuleInterop": true,
         "target": "ES2022",
-        "noImplicitAny": true,
-        "moduleResolution": "node",
+        // "experimentalDecorators": true,
+        "moduleResolution": "nodenext",
         "sourceMap": true,
+        "rootDir": "src",
         "outDir": "dist",
-        "baseUrl": "./src",
         "strict": true,
+        "noImplicitAny": true,
+        "strictNullChecks": true,
+        "strictFunctionTypes": true,
+        "strictPropertyInitialization": true,
+        "noImplicitThis": true,
+        "alwaysStrict": true,
         "declaration": true,
         "noFallthroughCasesInSwitch": true,
         "lib": [
             "ES2022"
         ],
+        "paths": {
+            "@/*": [
+                "./src/*"
+            ]
+        },
         "types": [
             "node"
         ],
@@ -23,6 +34,6 @@
         ]
     },
     "include": [
-        "./src",
+        "src/**/*"
     ]
 }
