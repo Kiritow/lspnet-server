@@ -12,7 +12,6 @@
   "license": "MIT",
   "dependencies": {
     "@influxdata/influxdb-client": "^1.33.2",
-    "axios": "^1.4.0",
     "dayjs": "^1.11.13",
     "ip-address": "^10.0.1",
     "koa": "^2.14.1",
@@ -22,6 +21,7 @@
     "koa-session": "^6.4.0",
     "mysql2": "^3.11.3",
     "raw-body": "^3.0.0",
+    "undici": "^7.25.0",
     "winston": "^3.8.2",
     "zod": "^3.23.8"
   },
