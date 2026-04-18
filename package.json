@@ -4,22 +4,15 @@
   "description": "",
   "main": "dist/index.js",
   "scripts": {
-    "build": "npm run eslint && rm -rf dist/ && tsc",
-    "eslint": "eslint -c .eslintrc.js"
+    "build": "npm run eslint && rm -rf dist/ && tsc && tsc-alias",
+    "eslint": "eslint -c eslint.config.ts src/",
+    "start": "node --enable-source-maps dist/index.js"
   },
-  "author": "",
+  "author": "Kiritow",
   "license": "MIT",
-  "types": "dist/index.d.ts",
-  "files": [
-    "dist",
-    "Readme.md",
-    "package.json",
-    "package-lock.json"
-  ],
   "dependencies": {
     "@influxdata/influxdb-client": "^1.33.2",
     "axios": "^1.4.0",
-    "callsite": "^1.0.0",
     "dayjs": "^1.11.13",
     "ip-address": "^10.0.1",
     "koa": "^2.14.1",
@@ -27,27 +20,26 @@
     "koa-json": "^2.0.2",
     "koa-router": "^12.0.0",
     "koa-session": "^6.4.0",
-    "moment": "^2.29.4",
     "mysql2": "^3.11.3",
     "raw-body": "^3.0.0",
-    "source-map-support": "^0.5.21",
     "winston": "^3.8.2",
     "zod": "^3.23.8"
   },
   "devDependencies": {
-    "@types/callsite": "^1.0.34",
-    "@types/jsbn": "^1.2.33",
+    "@eslint/js": "^10.0.1",
     "@types/koa": "^2.15.0",
     "@types/koa-bodyparser": "^4.3.12",
     "@types/koa-json": "^2.0.23",
     "@types/koa-router": "^7.4.8",
     "@types/koa-session": "^6.4.5",
-    "@types/node": "^22.5.5",
-    "@typescript-eslint/eslint-plugin": "^8.5.0",
-    "eslint": "^8.57.0",
-    "eslint-config-prettier": "^9.1.0",
-    "eslint-plugin-prettier": "^5.2.1",
-    "ts-node": "^10.9.2",
-    "typescript": "^5.6.2"
+    "@types/node": "^22.19.17",
+    "eslint": "^10.2.1",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-prettier": "^5.5.5",
+    "jiti": "^2.6.1",
+    "prettier": "^3.8.3",
+    "tsc-alias": "^1.8.16",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.58.2"
   }
 }
