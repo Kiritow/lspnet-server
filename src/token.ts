@@ -1,5 +1,5 @@
+import { randomBytes, createCipheriv, createDecipheriv } from "node:crypto";
 import z from "zod";
-import { randomBytes, createCipheriv, createDecipheriv } from "crypto";
 import { GetServiceTokenKeysSync } from "./credentials";
 
 // Generate new key with crypto.randomBytes(32).toString('hex')

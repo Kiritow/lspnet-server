@@ -1,8 +1,8 @@
-import assert from "assert";
+import assert from "node:assert";
+import fsPromises from "node:fs/promises";
+import { spawn } from "node:child_process";
 import { Address4 } from "ip-address";
 import z from "zod";
-import fs from "fs/promises";
-import { spawn } from "node:child_process";
 
 import {
     _linkTemplateExtraSchema,
@@ -196,7 +196,7 @@ ${allTexts.join("\n")}
 
     const tempFilename = `/tmp/ospf-diagram-${Date.now()}.dot`;
     const svgFilename = `/tmp/ospf-diagram-${Date.now()}.png`;
-    await fs.writeFile(tempFilename, finalText);
+    await fsPromises.writeFile(tempFilename, finalText);
     await RunCommand([
         "dot",
         "-Ksfdp",
@@ -205,8 +205,8 @@ ${allTexts.join("\n")}
         "-o",
         svgFilename,
     ]);
-    await fs.unlink(tempFilename);
-    const svgContent = await fs.readFile(svgFilename);
-    await fs.unlink(svgFilename);
+    await fsPromises.unlink(tempFilename);
+    const svgContent = await fsPromises.readFile(svgFilename);
+    await fsPromises.unlink(svgFilename);
     return svgContent;
 }

@@ -1,5 +1,5 @@
-import assert from "assert";
-import { Context } from "koa";
+import assert from "node:assert";
+import { ParameterizedContext } from "koa";
 import koaRouter from "koa-router";
 import z from "zod";
 
@@ -27,7 +27,9 @@ const router = new koaRouter({
 });
 export default router;
 
-async function verifyClientRequest(ctx: Context): Promise<NodeInfo | null> {
+async function verifyClientRequest(
+    ctx: ParameterizedContext
+): Promise<NodeInfo | null> {
     const clientKeyID = ctx.get("X-Client-ID");
     const nonce = ctx.get("X-Client-Nonce");
     const signature = ctx.get("X-Client-Sign");
@@ -72,7 +74,9 @@ async function verifyClientRequest(ctx: Context): Promise<NodeInfo | null> {
     return clientInfo;
 }
 
-async function mustVerifyClient(ctx: Context): Promise<NodeInfo | null> {
+async function mustVerifyClient(
+    ctx: ParameterizedContext
+): Promise<NodeInfo | null> {
     const clientInfo = await verifyClientRequest(ctx);
     if (clientInfo === null) {
         ctx.status = 401;

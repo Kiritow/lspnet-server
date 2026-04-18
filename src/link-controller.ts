@@ -1,8 +1,8 @@
+import assert from "node:assert";
 import { LinkExtraInfo, LinkTemplateExtraInfo, NodeConfig } from "./model";
 import { dao } from "./common";
 import { parseLinkTemplateExtra, parseNodeConfig } from "./utils";
 import { LinkTemplateUpdataParams } from "./dao";
-import assert from "assert";
 
 export async function StartLinkController() {}
 

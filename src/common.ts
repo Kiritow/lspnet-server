@@ -1,9 +1,9 @@
+import { ParameterizedContext } from "koa";
+import { InfluxDB } from "@influxdata/influxdb-client";
 import { DaoClass } from "./dao";
 import { GetMySQLOptionSync, GetInfluxDBOptionSync } from "./credentials";
 import getOrCreateLogger from "./base-log";
-import { InfluxDB } from "@influxdata/influxdb-client";
 import { InfluxAPI } from "./influx";
-import { Context } from "koa";
 
 export const logger = getOrCreateLogger("app");
 export const dao = new DaoClass(
@@ -27,7 +27,7 @@ export const influxWriteAPI = new InfluxAPI(
     influxDBOptions.bucket
 );
 
-export async function getWebUser(ctx: Context) {
+export async function getWebUser(ctx: ParameterizedContext) {
     if (ctx.session === null) {
         return null;
     }
@@ -45,7 +45,7 @@ export async function getWebUser(ctx: Context) {
     return accountInfo;
 }
 
-export async function mustLogin(ctx: Context) {
+export async function mustLogin(ctx: ParameterizedContext) {
     const accountInfo = await getWebUser(ctx);
     if (!accountInfo) {
         ctx.body = {

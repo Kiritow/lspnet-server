@@ -33,7 +33,7 @@ app.use(
 );
 
 app.use(koaBodyParser());
-app.use(koaJSON());
+app.use(koaJSON({ pretty: false }));
 app.use(NewAsyncRootMW());
 
 const router = new koaRouter();

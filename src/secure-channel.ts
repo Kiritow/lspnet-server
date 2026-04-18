@@ -1,5 +1,5 @@
-import assert from "assert";
-import crypto from "crypto";
+import assert from "node:assert";
+import crypto from "node:crypto";
 
 export function getPublicKeyHash(publicKey: crypto.KeyObject): Buffer {
     return crypto

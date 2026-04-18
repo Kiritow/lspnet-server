@@ -1,4 +1,4 @@
-import fs from "fs";
+import fs from "node:fs";
 import z from "zod";
 
 export function GetMySQLOptionSync() {
