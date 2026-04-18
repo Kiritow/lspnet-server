@@ -1,6 +1,6 @@
 import koaRouter from "koa-router";
-import axios from "axios";
-import { z } from "zod";
+import { fetch } from "undici";
+import z from "zod";
 
 import { logger, dao, getWebUser } from "./common";
 import { GetGithubOAuthAppSync } from "./credentials";
@@ -28,23 +28,30 @@ async function GetGithubAccessToken(
     code: string
 ): Promise<githubAccessToken | null> {
     try {
-        const r = await axios.post(
-            "https://github.com/login/oauth/access_token",
-            {
+        const res = await fetch("https://github.com/login/oauth/access_token", {
+            method: "POST",
+            headers: {
+                Accept: "application/json",
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
                 client_id: GITHUB_CLIENT_ID,
                 client_secret: GITHUB_CLIENT_SECRET,
                 code,
-            },
-            {
-                headers: {
-                    Accept: "application/json",
-                },
-            }
-        );
-        if (r.status != 200) {
+            }),
+        });
+        if (res.status != 200) {
             return null;
         }
-        const { access_token: accessToken, token_type: tokenType } = r.data;
+
+        const resData = await res.json();
+        const { access_token: accessToken, token_type: tokenType } = z
+            .object({
+                access_token: z.string(),
+                token_type: z.string(),
+            })
+            .parse(resData);
+
         return { token: accessToken, type: tokenType };
     } catch (e) {
         logger.error(e);
@@ -56,16 +63,24 @@ async function LoadGithubProfile(
     accessToken: githubAccessToken
 ): Promise<githubProfile | null> {
     try {
-        const r2 = await axios.get("https://api.github.com/user", {
+        const res = await fetch("https://api.github.com/user", {
+            method: "GET",
             headers: {
                 Authorization: `${accessToken.type} ${accessToken.token}`,
             },
         });
-        if (r2.status != 200) {
+        if (res.status != 200) {
             return null;
         }
 
-        const { node_id: githubUserID, login: githubLoginName } = r2.data;
+        const resData = await res.json();
+        const { node_id: githubUserID, login: githubLoginName } = z
+            .object({
+                node_id: z.string(),
+                login: z.string(),
+            })
+            .parse(resData);
+
         if (githubUserID == null || githubUserID.length < 1) {
             return null;
         }
