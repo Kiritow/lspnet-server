@@ -69,6 +69,8 @@ export const _nodeInfoSchema = z
             config: row.f_config,
             status: row.f_status,
             lastSeen: row.f_last_seen,
+            clientIP: row.f_client_ip,
+            clientVersion: row.f_client_version,
             createTime: row.f_create_time,
             updateTime: row.f_update_time,
         };

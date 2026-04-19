@@ -10,7 +10,7 @@ import {
     readableZodError,
 } from "./utils";
 import { CreateJoinClusterToken } from "./simple-token";
-import { LinkTemplateExtraInfo, NodeConfig } from "./model";
+import { LinkTemplateExtraInfo, NodeConfig, NodeInfo } from "./model";
 import { runLinkController } from "./link-controller";
 
 const router = new koaRouter({
@@ -169,6 +169,20 @@ router.get("/cluster/topology", async (ctx) => {
     ctx.body = topology;
 });
 
+function filterNodePKI(nodeInfo: NodeInfo) {
+    return {
+        id: nodeInfo.id,
+        clusterId: nodeInfo.clusterId,
+        nodeName: nodeInfo.nodeName,
+        status: nodeInfo.status,
+        lastSeen: nodeInfo.lastSeen,
+        clientIP: nodeInfo.clientIP,
+        clientVersion: nodeInfo.clientVersion,
+        createTime: nodeInfo.createTime,
+        updateTime: nodeInfo.updateTime,
+    };
+}
+
 router.get("/node/list", async (ctx) => {
     const userInfo = await mustLogin(ctx);
     if (!userInfo) return;
@@ -196,7 +210,7 @@ router.get("/node/list", async (ctx) => {
 
     const nodes = await dao.getNodesByClusterId(clusterId);
     ctx.body = {
-        nodes,
+        nodes: nodes.map((n) => filterNodePKI(n)),
     };
 });
 
@@ -231,7 +245,7 @@ router.get("/node/info", async (ctx) => {
     }
 
     ctx.body = {
-        node: nodeInfo,
+        node: filterNodePKI(nodeInfo),
     };
 });
 
