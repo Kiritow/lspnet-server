@@ -4,10 +4,10 @@ import { z } from "zod";
 import { dao, mustLogin } from "./common";
 import {
     GetAllValidLinkSubnetsFromCIDR,
+    getRouterTelemetryForWeb,
     parseLinkTemplateExtra,
     parseNodeConfig,
     readableZodError,
-    renderRouterTelemetryFromCache,
 } from "./utils";
 import { CreateJoinClusterToken } from "./simple-token";
 import { LinkTemplateExtraInfo, NodeConfig } from "./model";
@@ -165,8 +165,7 @@ router.get("/cluster/topology", async (ctx) => {
         return;
     }
 
-    const topology = await renderRouterTelemetryFromCache();
-    ctx.set("Content-Type", "image/png");
+    const topology = await getRouterTelemetryForWeb();
     ctx.body = topology;
 });
 

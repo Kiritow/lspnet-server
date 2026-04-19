@@ -1,5 +1,4 @@
 import assert from "node:assert";
-import fsPromises from "node:fs/promises";
 import { spawn } from "node:child_process";
 import { Address4 } from "ip-address";
 import z from "zod";
@@ -135,16 +134,51 @@ export const routerTelemetryCache: {
     otherAsbrs: [],
 };
 
-export async function renderRouterTelemetryFromCache() {
-    const backboneRouters = routerTelemetryCache.areaRouters["0.0.0.0"];
-    assert(backboneRouters !== undefined, "no backbone routers found");
+async function getRouterLabelForWeb(routerId: string) {
+    if (routerIdMapCache.has(routerId)) {
+        const nodeId = routerIdMapCache.get(routerId)!;
+        const nodeInfo = await dao.getNodeInfoById(nodeId);
+        if (nodeInfo !== null) {
+            return `${nodeInfo.nodeName} (${routerId})`;
+        }
+    }
 
+    return routerId;
+}
+
+export async function getRouterTelemetryForWeb() {
+    const nodes: { id: string; label: string; type: string; color: string }[] =
+        [];
+    const edges: {
+        source: string;
+        target: string;
+        label: string;
+        color: string;
+    }[] = [];
+
+    const backboneRouters = routerTelemetryCache.areaRouters["0.0.0.0"];
+    if (backboneRouters === undefined) {
+        console.warn("no backbone routers found");
+        return { nodes: [], edges: [] };
+    }
+
+    const nodeMap = new Map<string, { label: string; isInternal: boolean }>();
     const viewMap = new Map<
         string,
         { src: string; dst: string; single: boolean; cost: number }
     >();
     for (const router of backboneRouters) {
+        nodeMap.set(router.router_id, {
+            label: await getRouterLabelForWeb(router.router_id),
+            isInternal: true,
+        });
+
         for (const neighbor of router.routers) {
+            nodeMap.set(neighbor.router_id, {
+                label: await getRouterLabelForWeb(neighbor.router_id),
+                isInternal: true,
+            });
+
             const key = `${router.router_id}-${neighbor.router_id}`;
             const rkey = `${neighbor.router_id}-${router.router_id}`;
 
@@ -164,6 +198,11 @@ export async function renderRouterTelemetryFromCache() {
         }
 
         for (const externalRouter of router.xrouters) {
+            nodeMap.set(externalRouter.router_id, {
+                label: await getRouterLabelForWeb(externalRouter.router_id),
+                isInternal: false,
+            });
+
             const key = `${router.router_id}-${externalRouter.router_id}`;
             viewMap.set(key, {
                 src: router.router_id,
@@ -174,39 +213,28 @@ export async function renderRouterTelemetryFromCache() {
         }
     }
 
-    const allTexts = await Promise.all(
-        Array.from(viewMap.values()).map(async (value) => {
-            const srcLabel = routerIdMapCache.has(value.src)
-                ? `${(await dao.getNodeInfoById(routerIdMapCache.get(value.src)!))?.nodeName} (${value.src})`
-                : value.src;
-            const dstLabel = routerIdMapCache.has(value.dst)
-                ? `${(await dao.getNodeInfoById(routerIdMapCache.get(value.dst)!))?.nodeName} (${value.dst})`
-                : value.dst;
-            if (value.single) {
-                return `"${srcLabel}" -> "${dstLabel}" [label="${value.cost}"];`;
-            } else {
-                return `"${srcLabel}" -> "${dstLabel}" [label="${value.cost}",dir=none];`;
-            }
-        })
-    );
+    for (const [routerId, nodeInfo] of nodeMap.entries()) {
+        nodes.push({
+            id: routerId,
+            label: nodeInfo.label,
+            type: nodeInfo.isInternal ? "core" : "external",
+            color: nodeInfo.isInternal ? "#3b82f6" : "#bba1a1",
+        });
+    }
 
-    const finalText = `digraph ospf {
-${allTexts.join("\n")}
-}`;
+    for (const value of viewMap.values()) {
+        edges.push({
+            source: value.src,
+            target: value.dst,
+            label: `${value.cost.toFixed(2)} ms`,
+            color:
+                value.cost >= 100
+                    ? "#ef4444"
+                    : value.cost >= 50
+                      ? "#f59e0b"
+                      : "#10b981",
+        });
+    }
 
-    const tempFilename = `/tmp/ospf-diagram-${Date.now()}.dot`;
-    const svgFilename = `/tmp/ospf-diagram-${Date.now()}.png`;
-    await fsPromises.writeFile(tempFilename, finalText);
-    await RunCommand([
-        "dot",
-        "-Ksfdp",
-        "-Tpng",
-        tempFilename,
-        "-o",
-        svgFilename,
-    ]);
-    await fsPromises.unlink(tempFilename);
-    const svgContent = await fsPromises.readFile(svgFilename);
-    await fsPromises.unlink(svgFilename);
-    return svgContent;
+    return { nodes, edges };
 }
