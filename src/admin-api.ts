@@ -174,6 +174,7 @@ function filterNodePKI(nodeInfo: NodeInfo) {
         id: nodeInfo.id,
         clusterId: nodeInfo.clusterId,
         nodeName: nodeInfo.nodeName,
+        config: nodeInfo.config,
         status: nodeInfo.status,
         lastSeen: nodeInfo.lastSeen,
         clientIP: nodeInfo.clientIP,
