@@ -70,11 +70,12 @@ async function verifyClientRequest(ctx: ParameterizedContext) {
     }
 
     const clientIP = ctx.ip;
+    const clientIPFromCF = ctx.get("CF-Connecting-IP");
     const clientVersion = ctx.get("X-Client-Version");
 
     return {
         nodeInfo: nodeInfoFromDB,
-        clientIP,
+        clientIP: clientIPFromCF !== "" ? clientIPFromCF : clientIP,
         clientVersion,
     };
 }
