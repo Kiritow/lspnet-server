@@ -226,7 +226,7 @@ export async function getRouterTelemetryForWeb() {
         edges.push({
             source: value.src,
             target: value.dst,
-            label: `${value.cost.toFixed(2)} ms`,
+            label: `${value.cost.toFixed()}`,
             color:
                 value.cost >= 100
                     ? "#ef4444"
