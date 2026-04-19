@@ -54,6 +54,8 @@ export const _nodeInfoSchema = z
         f_config: z.string(),
         f_status: z.number(),
         f_last_seen: z.coerce.date(),
+        f_client_ip: z.string(),
+        f_client_version: z.string(),
         f_create_time: z.coerce.date(),
         f_update_time: z.coerce.date(),
     })

@@ -6,7 +6,7 @@ import z from "zod";
 import { dao, influxWriteAPI } from "./common";
 import { CheckJoinClusterToken } from "./simple-token";
 import { ClientKeyWrapper } from "./client-pki";
-import { _nodeRouterInfoSchema, NodeInfo } from "./model";
+import { _nodeRouterInfoSchema } from "./model";
 import {
     GetAllAddressFromLinkNetworkCIDR,
     parseNodeConfig,
@@ -27,19 +27,17 @@ const router = new koaRouter({
 });
 export default router;
 
-async function verifyClientRequest(
-    ctx: ParameterizedContext
-): Promise<NodeInfo | null> {
+async function verifyClientRequest(ctx: ParameterizedContext) {
     const clientKeyID = ctx.get("X-Client-ID");
     const nonce = ctx.get("X-Client-Nonce");
     const signature = ctx.get("X-Client-Sign");
-    const clientInfo = await dao.getNodeInfoBySignKeyHash(clientKeyID);
-    if (clientInfo === null) {
+    const nodeInfoFromDB = await dao.getNodeInfoBySignKeyHash(clientKeyID);
+    if (nodeInfoFromDB === null) {
         console.log(`Invalid client key id: ${clientKeyID}`);
         return null;
     }
 
-    const clientPublicKey = new ClientKeyWrapper(clientInfo.publicSignKey);
+    const clientPublicKey = new ClientKeyWrapper(nodeInfoFromDB.publicSignKey);
 
     if (ctx.method === "GET") {
         const signData = `${ctx.path}\n${nonce}\n${ctx.querystring}`;
@@ -71,19 +69,30 @@ async function verifyClientRequest(
         return null;
     }
 
-    return clientInfo;
+    const clientIP = ctx.ip;
+    const clientVersion = ctx.get("X-Client-Version");
+
+    return {
+        nodeInfo: nodeInfoFromDB,
+        clientIP,
+        clientVersion,
+    };
 }
 
-async function mustVerifyClient(
-    ctx: ParameterizedContext
-): Promise<NodeInfo | null> {
-    const clientInfo = await verifyClientRequest(ctx);
-    if (clientInfo === null) {
+async function mustVerifyClient(ctx: ParameterizedContext) {
+    const verifyResult = await mustVerifyClientWithInfo(ctx);
+    if (verifyResult === null) return null;
+    return verifyResult.nodeInfo;
+}
+
+async function mustVerifyClientWithInfo(ctx: ParameterizedContext) {
+    const verifyResult = await verifyClientRequest(ctx);
+    if (verifyResult === null) {
         ctx.status = 401;
         return null;
     }
 
-    return clientInfo;
+    return verifyResult;
 }
 
 router.post("/join", async (ctx) => {
@@ -321,8 +330,9 @@ router.get("/peers", async (ctx) => {
 });
 
 router.post("/link_telemetry", async (ctx) => {
-    const nodeInfo = await mustVerifyClient(ctx);
-    if (nodeInfo === null) return;
+    const clientInfo = await mustVerifyClientWithInfo(ctx);
+    if (clientInfo === null) return;
+    const { nodeInfo, clientIP, clientVersion } = clientInfo;
 
     const body = z
         .object({
@@ -346,9 +356,15 @@ router.post("/link_telemetry", async (ctx) => {
     const { links } = body.data;
 
     // heartbeat
-    await dao.updateNode(nodeInfo.id, {
-        lastSeenTs: Date.now(),
-    });
+    await dao.updateNode(
+        nodeInfo.id,
+        {
+            lastSeenTs: Date.now(),
+            clientIP,
+            clientVersion,
+        },
+        { keepUpdateTime: true }
+    );
 
     const clusterInfo = await dao.getClusterInfo(nodeInfo.clusterId);
     if (clusterInfo === null) {
@@ -439,8 +455,9 @@ router.post("/link_telemetry", async (ctx) => {
 });
 
 router.post("/router_telemetry", async (ctx) => {
-    const nodeInfo = await mustVerifyClient(ctx);
-    if (nodeInfo === null) return;
+    const clientInfo = await mustVerifyClientWithInfo(ctx);
+    if (clientInfo === null) return;
+    const { nodeInfo, clientIP, clientVersion } = clientInfo;
 
     const body = z
         .object({
@@ -456,6 +473,17 @@ router.post("/router_telemetry", async (ctx) => {
     }
 
     const { area_routers: areaRouters, other_asbrs: otherAsbrs } = body.data;
+
+    // heartbeat
+    await dao.updateNode(
+        nodeInfo.id,
+        {
+            lastSeenTs: Date.now(),
+            clientIP,
+            clientVersion,
+        },
+        { keepUpdateTime: true }
+    );
 
     // get OSPF router id of this node
     const backboneRouters = areaRouters["0.0.0.0"];

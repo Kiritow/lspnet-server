@@ -174,6 +174,11 @@ export class DaoClass extends BaseDaoClass {
         data: {
             config?: string;
             lastSeenTs?: number;
+            clientIP?: string;
+            clientVersion?: string;
+        },
+        options?: {
+            keepUpdateTime?: boolean; // default to false
         }
     ) {
         const sqlParts: string[] = [];
@@ -186,6 +191,17 @@ export class DaoClass extends BaseDaoClass {
         if (data.lastSeenTs !== undefined) {
             sqlParts.push("f_last_seen=?");
             params.push(tsToMySQLTime(data.lastSeenTs));
+        }
+        if (data.clientIP !== undefined) {
+            sqlParts.push("f_client_ip=?");
+            params.push(data.clientIP);
+        }
+        if (data.clientVersion !== undefined) {
+            sqlParts.push("f_client_version=?");
+            params.push(data.clientVersion);
+        }
+        if (options?.keepUpdateTime) {
+            sqlParts.push("f_update_time=f_update_time");
         }
         if (sqlParts.length < 1) {
             return;
