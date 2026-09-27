@@ -31,8 +31,7 @@ function createLinkExtraAsClient(
         linkExtra.multiport = templateExtra.multiport;
     }
 
-    if (templateExtra.underlay !== undefined) {
-        assert(templateExtra.underlay.provider === "gost");
+    if (templateExtra.underlay?.provider === "gost") {
         const gostRelayUsername =
             (cdata.get("gost_relay_username") as string) ??
             `${crypto.randomUUID()}`;
@@ -54,6 +53,19 @@ function createLinkExtraAsClient(
                 password: templateExtra.underlay.config.enable_auth
                     ? gostRelayPassword
                     : undefined,
+            },
+        };
+    } else if (templateExtra.underlay?.provider === "local") {
+        const clientAddr =
+            templateExtra.underlay.config.client_addr ?? "127.0.0.1";
+        const clientPort = templateExtra.underlay.config.client_port;
+        linkExtra.underlay = {
+            provider: "local",
+            config_local: {
+                // ipv6 address needs brackets
+                endpoint: clientAddr.includes(":")
+                    ? `[${clientAddr}]:${clientPort}`
+                    : `${clientAddr}:${clientPort}`,
             },
         };
     }
@@ -87,8 +99,8 @@ function createLinkExtraAsServer(
         linkExtra.multilisten = templateExtra.multilisten;
     }
 
-    if (templateExtra.underlay !== undefined) {
-        assert(templateExtra.underlay.provider === "gost");
+    // "local" underlay needs nothing on server side, the node delivers traffic to wireguard listen port by itself.
+    if (templateExtra.underlay?.provider === "gost") {
         const gostRelayUsername =
             (cdata.get("gost_relay_username") as string) ??
             `${crypto.randomUUID()}`;
@@ -113,6 +125,29 @@ function createLinkExtraAsServer(
     }
 
     return linkExtra;
+}
+
+// reuse relay credentials of the existing link, otherwise every template update rotates them
+// and the link breaks until both nodes have synced.
+function reuseGostRelayCredentials(
+    cdata: Map<string, unknown>,
+    rawLinkExtra: string
+) {
+    let linkExtra: LinkExtraInfo;
+    try {
+        linkExtra = JSON.parse(rawLinkExtra);
+    } catch (e) {
+        console.log(
+            `Failed to parse link extra: ${e instanceof Error ? e.message : e}`
+        );
+        return;
+    }
+
+    const config = linkExtra.underlay?.config_gost_relay_client;
+    if (config?.username !== undefined && config.password !== undefined) {
+        cdata.set("gost_relay_username", config.username);
+        cdata.set("gost_relay_password", config.password);
+    }
 }
 
 export async function runLinkController() {
@@ -416,6 +451,8 @@ export async function runLinkController() {
                     );
                     continue;
                 }
+
+                reuseGostRelayCredentials(cdata, clientLink.extra);
 
                 // sync listen port, endpoint, extra
                 await dao._updateWireGuardLink(

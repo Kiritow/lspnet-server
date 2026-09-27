@@ -340,14 +340,26 @@ export const _nodeRouterInfoSchema = z.object({
 
 export type NodeRouterInfo = z.infer<typeof _nodeRouterInfoSchema>;
 
-export const _underlayConfigSchema = z.object({
-    provider: z.literal("gost"),
-    config: z.object({
-        client_port: z.number(),
-        server_port: z.number(),
-        enable_auth: z.boolean().optional(), // default is false. if true, an username and password will be generated.
+export const _underlayConfigSchema = z.discriminatedUnion("provider", [
+    z.object({
+        provider: z.literal("gost"),
+        config: z.object({
+            client_port: z.number(),
+            server_port: z.number(),
+            enable_auth: z.boolean().optional(), // default is false. if true, an username and password will be generated.
+        }),
     }),
-});
+    // underlay is maintained by nodes themselves, the agent starts nothing.
+    // client wireguard endpoint is set to the local connector (client_addr:client_port),
+    // on server side the underlay should deliver traffic to wireguard listen port.
+    z.object({
+        provider: z.literal("local"),
+        config: z.object({
+            client_addr: z.string().min(1).optional(), // default is 127.0.0.1
+            client_port: z.number().int().min(1).max(65535),
+        }),
+    }),
+]);
 
 export const _linkTemplateExtraSchema = z.object({
     ospf: z.object({
@@ -383,7 +395,10 @@ export interface LinkExtraInfo {
     multilisten?: number[];
     multiport?: number[];
     underlay?: {
-        provider: "gost_relay_client" | "gost_relay_server";
+        provider: "gost_relay_client" | "gost_relay_server" | "local";
+        config_local?: {
+            endpoint: string;
+        };
         config_gost_relay_client?: {
             listen_port: number;
             server_addr: string;
