@@ -262,6 +262,24 @@ export class DaoClass extends BaseDaoClass {
         return _nodeLinkTemplateSchema.parse(result[0]);
     }
 
+    // disabled templates keep their listen ports, so they are included.
+    async getLinkTemplateByListenPort(
+        nodeId: number,
+        port: number,
+        excludeTemplateId?: number
+    ) {
+        const result = await this.query(
+            `select * from t_node_link_template where
+                ((f_dst_node_id=? and f_dst_listen_port=?) or (f_src_node_id=? and f_src_listen_port=?))
+                and f_id<>? limit 1`,
+            [nodeId, port, nodeId, port, excludeTemplateId ?? 0]
+        );
+        if (result.length < 1) {
+            return null;
+        }
+        return _nodeLinkTemplateSchema.parse(result[0]);
+    }
+
     async getLinkTemplateByLinkId(linkId: number) {
         const result = await this.query(
             "select * from t_node_link_template where f_wglink_client_id=? or f_wglink_server_id=?",

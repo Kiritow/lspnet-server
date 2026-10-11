@@ -379,6 +379,16 @@ router.post("/link/create", async (ctx) => {
         return;
     }
 
+    const portUsedBy = await dao.getLinkTemplateByListenPort(
+        dstNodeId,
+        dstPort
+    );
+    if (portUsedBy !== null) {
+        ctx.status = 400;
+        ctx.body = `Port ${dstPort} of node ${dstNodeId} is already used by link ${portUsedBy.id}`;
+        return;
+    }
+
     let extraInfo: LinkTemplateExtraInfo | undefined = undefined;
     if (extra !== undefined) {
         try {
@@ -457,6 +467,17 @@ router.post("/link/update", async (ctx) => {
     if (userRole < 1) {
         ctx.status = 403;
         ctx.body = "You do not have permission to update link";
+        return;
+    }
+
+    const portUsedBy = await dao.getLinkTemplateByListenPort(
+        linkTemplate.dstNodeId,
+        dstPort,
+        linkId
+    );
+    if (portUsedBy !== null) {
+        ctx.status = 400;
+        ctx.body = `Port ${dstPort} of node ${linkTemplate.dstNodeId} is already used by link ${portUsedBy.id}`;
         return;
     }
 
