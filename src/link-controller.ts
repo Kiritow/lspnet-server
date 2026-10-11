@@ -454,7 +454,7 @@ export async function runLinkController() {
 
                 reuseGostRelayCredentials(cdata, clientLink.extra);
 
-                // sync listen port, endpoint, extra
+                // sync listen port, endpoint, extra. re-enable it in case the template was disabled before.
                 await dao._updateWireGuardLink(
                     conn,
                     updatedTemplate.wgLinkClientId,
@@ -466,6 +466,7 @@ export async function runLinkController() {
                         extra: JSON.stringify(
                             createLinkExtraAsClient(cdata, templateExtra)
                         ),
+                        status: 1,
                     }
                 );
             }
@@ -513,6 +514,7 @@ export async function runLinkController() {
                         extra: JSON.stringify(
                             createLinkExtraAsServer(cdata, templateExtra)
                         ),
+                        status: 1,
                     }
                 );
             }

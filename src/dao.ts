@@ -306,6 +306,62 @@ export class DaoClass extends BaseDaoClass {
         await this.run(sql, params);
     }
 
+    async setLinkTemplateEnabled(linkTemplateId: number, enabled: boolean) {
+        // wglinks are enabled/disabled by link controller on next run
+        await this.run(
+            "update t_node_link_template set f_enabled=?,f_ready=0 where f_id=?",
+            [enabled ? 1 : 0, linkTemplateId]
+        );
+    }
+
+    // returns false if the template is gone or not disabled.
+    async deleteLinkTemplate(linkTemplateId: number) {
+        const conn = await this.getConnection();
+        try {
+            await conn.begin();
+            const template = await this._lockLinkTemplate(conn, linkTemplateId);
+            if (template === null || template.enabled) {
+                return false;
+            }
+
+            // nodes tear down the interfaces once the wglinks are gone from /peers
+            for (const linkId of [
+                template.wgLinkClientId,
+                template.wgLinkServerId,
+            ]) {
+                if (linkId !== 0) {
+                    await conn.run("delete from t_node_wglink where f_id=?", [
+                        linkId,
+                    ]);
+                }
+            }
+
+            // return keys and subnet to the pool. listen ports are freed along with the template.
+            for (const keyId of [template.srcWgKeyId, template.dstWgKeyId]) {
+                if (keyId !== 0) {
+                    await conn.run(
+                        "update t_node_wgkey set f_status=0 where f_id=?",
+                        [keyId]
+                    );
+                }
+            }
+            if (template.subnetId !== 0) {
+                await conn.run("update t_subnet set f_status=0 where f_id=?", [
+                    template.subnetId,
+                ]);
+            }
+
+            await conn.run("delete from t_node_link_template where f_id=?", [
+                linkTemplateId,
+            ]);
+
+            await conn.commit();
+            return true;
+        } finally {
+            conn.finish();
+        }
+    }
+
     async _updateLinkTemplate(
         conn: BaseConnection,
         linkTemplateId: number,
@@ -493,6 +549,7 @@ export class DaoClass extends BaseDaoClass {
             endpointTemplate?: string;
             endpoint?: string;
             extra?: string;
+            status?: number;
         }
     ) {
         const sqlParts: string[] = [];
@@ -521,6 +578,11 @@ export class DaoClass extends BaseDaoClass {
         if (data.extra !== undefined) {
             sqlParts.push("f_extra=?");
             params.push(data.extra);
+        }
+
+        if (data.status !== undefined) {
+            sqlParts.push("f_status=?");
+            params.push(data.status);
         }
         if (sqlParts.length < 1) {
             return;

@@ -1,3 +1,4 @@
+import { ParameterizedContext } from "koa";
 import koaRouter from "koa-router";
 import { z } from "zod";
 
@@ -557,6 +558,114 @@ router.get("/link/info", async (ctx) => {
 
     ctx.body = {
         template: linkTemplate,
+    };
+});
+
+// returns null and writes the error response if the link is not found or not accessible.
+async function mustGetLinkTemplateWithRole(
+    ctx: ParameterizedContext,
+    userId: number,
+    linkId: number
+) {
+    const linkTemplate = await dao.getLinkTemplateById(linkId);
+    if (linkTemplate === null) {
+        ctx.status = 404;
+        ctx.body = `Link ${linkId} not found`;
+        return null;
+    }
+
+    const srcNode = await dao.getNodeInfoById(linkTemplate.srcNodeId);
+    if (srcNode === null) {
+        ctx.status = 404;
+        ctx.body = `Node ${linkTemplate.srcNodeId} not found`;
+        return null;
+    }
+
+    const userRole = await dao.getUserRole(userId, srcNode.clusterId);
+    if (userRole === null) {
+        ctx.status = 403;
+        ctx.body = "You do not have permission to access this cluster";
+        return null;
+    }
+
+    return { linkTemplate, userRole };
+}
+
+router.post("/link/set_enabled", async (ctx) => {
+    const userInfo = await mustLogin(ctx);
+    if (!userInfo) return;
+
+    const body = z
+        .object({
+            id: z.number(),
+            enabled: z.boolean(),
+        })
+        .safeParse(ctx.request.body);
+
+    if (!body.success) {
+        ctx.status = 400;
+        ctx.body = readableZodError(body.error);
+        return;
+    }
+
+    const { id: linkId, enabled } = body.data;
+    const result = await mustGetLinkTemplateWithRole(ctx, userInfo.id, linkId);
+    if (result === null) return;
+
+    if (result.userRole < 1) {
+        ctx.status = 403;
+        ctx.body = "You do not have permission to update link";
+        return;
+    }
+
+    await dao.setLinkTemplateEnabled(linkId, enabled);
+
+    ctx.body = {
+        message: "OK",
+    };
+});
+
+router.post("/link/delete", async (ctx) => {
+    const userInfo = await mustLogin(ctx);
+    if (!userInfo) return;
+
+    const body = z
+        .object({
+            id: z.number(),
+        })
+        .safeParse(ctx.request.body);
+
+    if (!body.success) {
+        ctx.status = 400;
+        ctx.body = readableZodError(body.error);
+        return;
+    }
+
+    const { id: linkId } = body.data;
+    const result = await mustGetLinkTemplateWithRole(ctx, userInfo.id, linkId);
+    if (result === null) return;
+
+    if (result.userRole < 1) {
+        ctx.status = 403;
+        ctx.body = "You do not have permission to delete link";
+        return;
+    }
+
+    if (result.linkTemplate.enabled) {
+        ctx.status = 400;
+        ctx.body = `Link ${linkId} must be disabled before deletion`;
+        return;
+    }
+
+    // re-checked under lock, the link might have been deleted or re-enabled meanwhile
+    if (!(await dao.deleteLinkTemplate(linkId))) {
+        ctx.status = 409;
+        ctx.body = `Link ${linkId} has changed, please retry`;
+        return;
+    }
+
+    ctx.body = {
+        message: "OK",
     };
 });
 
