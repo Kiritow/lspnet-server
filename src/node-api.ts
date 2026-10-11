@@ -446,10 +446,12 @@ router.post("/link_telemetry", async (ctx) => {
             }
 
             // To mimic existing telemetry data structure...
+            // link tag keeps multiple links between the same node pair in separate series
             influxWriteAPI.writeMultiInt("inf.network.monitoring", dataPack, {
                 network: clusterInfo.name,
                 host: telemetrySenderName,
                 name: telemetryPeerName,
+                link: `${linkTemplate.id}`,
             });
         })
     );
