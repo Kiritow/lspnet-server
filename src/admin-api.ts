@@ -177,6 +177,7 @@ function filterNodePKI(nodeInfo: NodeInfo) {
         nodeName: nodeInfo.nodeName,
         config: nodeInfo.config,
         status: nodeInfo.status,
+        wgKeyRequest: nodeInfo.wgKeyRequest,
         lastSeen: nodeInfo.lastSeen,
         clientIP: nodeInfo.clientIP,
         clientVersion: nodeInfo.clientVersion,

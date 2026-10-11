@@ -542,4 +542,7 @@ export async function runLinkController() {
             conn.finish();
         }
     }
+
+    // ask nodes for keys still missing (and spare ones), templates waiting for keys get them on a later run.
+    await dao.refreshWireGuardKeyRequests();
 }

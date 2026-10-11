@@ -1,5 +1,6 @@
 import dayjs from "dayjs";
 import { BaseConnection, BaseDaoClass } from "./base-dao";
+import { WGKEY_SPARE_PER_NODE } from "./consts";
 import {
     _clusterSchema,
     _clusterSubnetSchema,
@@ -165,6 +166,7 @@ export class DaoClass extends BaseDaoClass {
             f_public_sign_key: publicSignKey,
             f_public_sign_key_hash: publicSignKeyHash,
             f_config: config,
+            f_wgkey_request: WGKEY_SPARE_PER_NODE,
         });
         return result.insertId;
     }
@@ -612,22 +614,57 @@ export class DaoClass extends BaseDaoClass {
         await conn.run(sql, params);
     }
 
+    // returns the number of newly added keys
     async updateNodeWireGuardKeys(nodeId: number, keys: string[]) {
         const results = await this.query(
             "select * from t_node_wgkey where f_node_id=?",
             [nodeId]
         );
         const existKeys = new Set(results.map((row) => row.f_public_key));
-        await Promise.all(
+        const added = await Promise.all(
             keys.map(async (key) => {
                 if (existKeys.has(key)) {
-                    return;
+                    return 0;
                 }
-                await this.insertIgnore("t_node_wgkey", {
+                const result = await this.insertIgnore("t_node_wgkey", {
                     f_node_id: nodeId,
                     f_public_key: key,
                 });
+                return result.affectedRows;
             })
+        );
+        return added.reduce((a, b) => a + b, 0);
+    }
+
+    // count newly added keys against the request, returns the number of keys still requested.
+    async fulfillWireGuardKeyRequest(nodeId: number, addedKeys: number) {
+        if (addedKeys > 0) {
+            await this.run(
+                "update t_node_info set f_wgkey_request=greatest(f_wgkey_request-?,0),f_update_time=f_update_time where f_id=?",
+                [addedKeys, nodeId]
+            );
+        }
+        const result = await this.query(
+            "select f_wgkey_request from t_node_info where f_id=?",
+            [nodeId]
+        );
+        if (result.length < 1) {
+            return 0;
+        }
+        return result[0].f_wgkey_request as number;
+    }
+
+    // request = keys still needed by enabled link templates + spare - unused keys, for every node.
+    async refreshWireGuardKeyRequests() {
+        await this.run(
+            `update t_node_info n set
+                n.f_wgkey_request=greatest(0,
+                    (select count(*) from t_node_link_template t where t.f_enabled=1 and t.f_src_node_id=n.f_id and t.f_src_wgkey_id=0)
+                    + (select count(*) from t_node_link_template t where t.f_enabled=1 and t.f_dst_node_id=n.f_id and t.f_dst_wgkey_id=0)
+                    + ?
+                    - (select count(*) from t_node_wgkey k where k.f_node_id=n.f_id and k.f_status=0)),
+                n.f_update_time=n.f_update_time`,
+            [WGKEY_SPARE_PER_NODE]
         );
     }
 

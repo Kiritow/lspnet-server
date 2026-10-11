@@ -240,10 +240,16 @@ router.post("/sync_wireguard_keys", async (ctx) => {
     }
 
     const { keys } = body.data;
-    await dao.updateNodeWireGuardKeys(nodeInfo.id, keys);
+    const addedKeys = await dao.updateNodeWireGuardKeys(nodeInfo.id, keys);
+    const request = await dao.fulfillWireGuardKeyRequest(
+        nodeInfo.id,
+        addedKeys
+    );
 
     ctx.body = {
         message: "OK",
+        // number of new keys the node should generate and report
+        request,
     };
 });
 
