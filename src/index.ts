@@ -1,7 +1,7 @@
 import koa from "koa";
-import koaBodyParser from "koa-bodyparser";
+import koaBodyParser from "@koa/bodyparser";
 import koaJSON from "koa-json";
-import koaRouter from "koa-router";
+import koaRouter from "@koa/router";
 import koaSession from "koa-session";
 
 import { NewAsyncRootMW } from "./middleware";

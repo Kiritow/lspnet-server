@@ -9,7 +9,7 @@ export interface QueryOptions {
 class QueryMethods<TBase extends QueryMethods<TBase>> {
     queryEx<T extends mysql.QueryResult = mysql.RowDataPacket[]>(
         sql: string,
-        params: unknown,
+        params: mysql.QueryValues,
         options?: QueryOptions
     ): Promise<{ results: T; fields?: mysql.FieldPacket[] }> {
         throw new Error("Method not implemented.");
@@ -17,7 +17,7 @@ class QueryMethods<TBase extends QueryMethods<TBase>> {
 
     async query<T extends mysql.QueryResult = mysql.RowDataPacket[]>(
         sql: string,
-        params: unknown,
+        params: mysql.QueryValues,
         options?: QueryOptions
     ) {
         return (await this.queryEx<T>(sql, params, options)).results;
@@ -25,7 +25,7 @@ class QueryMethods<TBase extends QueryMethods<TBase>> {
 
     async run<T extends mysql.QueryResult = mysql.ResultSetHeader>(
         sql: string,
-        params: unknown,
+        params: mysql.QueryValues,
         options?: QueryOptions
     ) {
         return (await this.queryEx<T>(sql, params, options)).results;
@@ -161,7 +161,7 @@ export class BaseConnection extends QueryMethods<BaseConnection> {
 
     async queryEx<T extends mysql.QueryResult = mysql.RowDataPacket[]>(
         sql: string,
-        params: unknown,
+        params: mysql.QueryValues,
         options?: QueryOptions
     ): Promise<{ results: T; fields?: mysql.FieldPacket[] }> {
         return new Promise((resolve, reject) => {
@@ -206,7 +206,7 @@ export class BaseDaoClass extends QueryMethods<BaseDaoClass> {
     // Utils
     async queryEx<T extends mysql.QueryResult = mysql.RowDataPacket[]>(
         sql: string,
-        params: unknown,
+        params: mysql.QueryValues,
         options?: QueryOptions
     ): Promise<{
         results: T;

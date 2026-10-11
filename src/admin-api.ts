@@ -1,5 +1,5 @@
 import { ParameterizedContext } from "koa";
-import koaRouter from "koa-router";
+import koaRouter from "@koa/router";
 import { z } from "zod";
 
 import { dao, mustLogin } from "./common";

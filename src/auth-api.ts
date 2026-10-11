@@ -1,4 +1,4 @@
-import koaRouter from "koa-router";
+import koaRouter from "@koa/router";
 import { fetch } from "undici";
 import z from "zod";
 
